@@ -12,7 +12,7 @@ Stremio Addons are integrated directly into standard Streaming Mode as a first-c
 - **Series & Episode Hierarchy**: Series are automatically organized into explicit `Seasons` and `Episodes` selector panes with smooth horizontal navigation (`←`/`→`/`h`/`l`/`Tab`). Selecting any episode drives episode-specific stream requests (`/stream/series/:id:season:episode.json`).
 - **Episode Stream Isolation**: Built-in token parsing (`parse_season_episode`) guarantees that only streams matching the selected season and episode are displayed, eliminating cross-episode stream mixing.
 - **Direct Playback & Custom Headers**: Video stream headers (`behaviorHints.headers`) such as `Referer` and `User-Agent` are preserved and forwarded directly to external media players (`mpv`, `IINA`, `VLC`) and the multi-segment downloader.
-- **Watch History & Progress Parity**: Full `/history` support in Addon Mode with real-time `mpv` position tracking, scrub lines, and auto-resume.
+- **Watch History & Progress Parity**: Full `/history` support for Addon streams with real-time `mpv` position tracking, scrub lines, and auto-resume.
 - **High-Performance Caching**: Curated `/browse` catalogs are cached for `1 hour`, manifests for `24 hours`, and stream aggregations for `2 hours`.
 
 ## Accessing Addon Streams

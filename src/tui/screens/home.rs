@@ -2157,7 +2157,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
                 } else {
                     "[DISCOVER]"
                 };
-                format!("{badge_str}{spacing}{label}")
+                format!("  {badge_str}{spacing}{label}  ")
             })
             .collect();
 
@@ -2166,9 +2166,11 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
             .map(|label| {
                 let (badge, spacing) = crate::tui::overlay::browse_category_badge(label, theme);
                 Line::from(vec![
+                    Span::raw("  "),
                     badge,
                     Span::raw(spacing),
                     Span::styled(label.to_string(), theme.text),
+                    Span::raw("  "),
                 ])
             })
             .collect();
@@ -2534,9 +2536,10 @@ fn render_provider_popup(
             };
             let label_style = theme.text;
             ListItem::new(Line::from(vec![
-                Span::raw(" "),
+                Span::raw("  "),
                 Span::styled(active_prefix, active_style),
                 Span::styled(provider.label(), label_style),
+                Span::raw("  "),
             ]))
         })
         .collect();

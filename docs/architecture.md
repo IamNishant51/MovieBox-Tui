@@ -49,7 +49,7 @@ src/
                                 episode-stream actions
       navigation.rs             list navigation, submit actions, provider helpers
       tv.rs                     TV mode: playlist manager + playback
-      addons.rs                 Addon mode: addon manager + HTTP addon actions
+      addons.rs                 Addon manager modal + HTTP addon actions
       keyboard.rs               raw key-event handling
       mouse.rs                  mouse click handling and hitbox routing
       system.rs                 help, refresh, cache, theme, updates, focus, resize

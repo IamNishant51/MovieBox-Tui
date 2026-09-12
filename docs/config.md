@@ -30,7 +30,7 @@ All settings in `config.json` can be configured interactively inside the applica
 - **General**: Toggle automatic update checks, choose default media player (`mpv`, `VLC`, `IINA`, `Android`), and edit download folder path.
 - **Content Modes**: Toggle Streaming Mode, open the Streaming Sources selector (to enable/disable MovieBox, 4KHDHub, CircleFTP, DhakaFlix), and toggle Live TV.
 - **Appearance**: Open the visual theme swatch picker to select among 6 built-in color themes.
-- **Maintenance**: Purge disk cache, query GitHub for release updates, open GitHub repository, and trigger a manual local network BDIX re-probe.
+- **Maintenance**: Purge disk cache, clear watch history, query GitHub for release updates, open GitHub repository, and trigger a manual local network BDIX re-probe.
 ## Other persisted files
 
 - `addons_config.json` — list of installed HTTP addons in the config directory (see [addons-mode.md](addons-mode.md)).

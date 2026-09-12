@@ -67,7 +67,7 @@ impl App {
                 .state
                 .available_players
                 .iter()
-                .map(|k| k.label().to_string())
+                .map(|k| format!("  {}  ", k.label()))
                 .collect::<Vec<_>>();
             let confirm_label = "Select";
             match click_in_picker(
@@ -93,7 +93,7 @@ impl App {
         if self.state.show_sources_popup {
             let items = crate::providers::models::ProviderKind::ENABLED
                 .iter()
-                .map(|p| format!(" [✓] {} ", p.label()))
+                .map(|p| format!("  [✓] {}  ", p.label()))
                 .collect::<Vec<_>>();
             match click_in_picker(
                 crate::tui::overlay::picker_layout(area, &items, "Toggle", 20),
@@ -234,7 +234,7 @@ impl App {
                     } else {
                         "[DISCOVER] "
                     };
-                    format!("{badge_str}{label}")
+                    format!("  {badge_str}{label}  ")
                 })
                 .collect();
             match click_in_picker(
@@ -317,7 +317,7 @@ impl App {
                 .state
                 .subtitle_list
                 .iter()
-                .map(|(name, _)| crate::tui::text::format_subtitle_label(name))
+                .map(|(name, _)| format!("  {}  ", crate::tui::text::format_subtitle_label(name)))
                 .collect::<Vec<_>>();
             let confirm_label = if self.state.is_download_subtitle_popup {
                 "Download"

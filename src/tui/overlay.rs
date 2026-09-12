@@ -35,7 +35,7 @@ pub fn picker_layout(
         .map(|item| crate::tui::text::width(item))
         .max()
         .unwrap_or(0)
-        .saturating_add(6);
+        .saturating_add(2);
     centered(
         area,
         content_width as u16,
@@ -137,13 +137,14 @@ pub fn picker(
     theme: &Theme,
     basic_terminal: bool,
 ) {
+    let padded_items: Vec<String> = items.iter().map(|item| format!("  {item}  ")).collect();
     let lines: Vec<Line<'static>> = items
         .iter()
         .map(|item| {
             Line::from(vec![
-                Span::raw(" "),
+                Span::raw("  "),
                 Span::raw(item.clone()),
-                Span::raw(" "),
+                Span::raw("  "),
             ])
         })
         .collect();
@@ -151,7 +152,7 @@ pub fn picker(
         frame,
         area,
         &lines,
-        items,
+        &padded_items,
         state,
         spec,
         theme,
@@ -871,6 +872,18 @@ mod tests {
         let items_two = vec!["Item 1".to_string(), "Item 2".to_string()];
         let layout_two = picker_layout(area, &items_two, "Use", 20);
         assert_eq!(layout_two.height, 4);
+    }
+    #[test]
+    fn test_picker_layout_symmetrical_margins() {
+        let area = Rect::new(0, 0, 80, 24);
+        let items = vec![
+            "  [✓] MovieBox          ".to_string(),
+            "  [✓] CircleFTP (BDIX)  ".to_string(),
+        ];
+        let layout = picker_layout(area, &items, "", 10);
+        assert_eq!(layout.width, 26);
+        let inner_width = layout.width.saturating_sub(2);
+        assert_eq!(inner_width, 24);
     }
 
     #[test]

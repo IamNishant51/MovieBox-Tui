@@ -918,9 +918,9 @@ impl App {
                 .iter()
                 .map(|name| {
                     if self.state.basic_terminal {
-                        format!("  {name:<pad$}  * * * ", pad = longest_name)
+                        format!("  {name:<pad$}   * * *  ", pad = longest_name)
                     } else {
-                        format!("  {name:<pad$}  ■ ■ ■ ", pad = longest_name)
+                        format!("  {name:<pad$}   ■ ■ ■  ", pad = longest_name)
                     }
                 })
                 .collect();
@@ -931,13 +931,13 @@ impl App {
                     let mut spans = vec![
                         Span::raw("  "),
                         Span::styled(format!("{name:<pad$}", pad = longest_name), self.theme.text),
-                        Span::raw("  "),
+                        Span::raw("   "),
                     ];
                     spans.extend(crate::tui::theme::Theme::palette_swatch_spans(
                         name,
                         self.state.basic_terminal,
                     ));
-                    spans.push(Span::raw(" "));
+                    spans.push(Span::raw("  "));
                     Line::from(spans)
                 })
                 .collect();
@@ -969,7 +969,7 @@ impl App {
             let providers = crate::providers::models::ProviderKind::ENABLED;
             let raw_items: Vec<String> = providers
                 .iter()
-                .map(|p| format!(" [✓] {} ", p.label()))
+                .map(|p| format!("  [✓] {}  ", p.label()))
                 .collect();
             let lines: Vec<ratatui::text::Line<'static>> = providers
                 .iter()
@@ -1000,10 +1000,10 @@ impl App {
                         self.theme.text_dim
                     };
                     ratatui::text::Line::from(vec![
-                        ratatui::text::Span::raw(" "),
+                        ratatui::text::Span::raw("  "),
                         ratatui::text::Span::styled(check, check_style),
                         ratatui::text::Span::styled(p.label(), label_style),
-                        ratatui::text::Span::raw(" "),
+                        ratatui::text::Span::raw("  "),
                     ])
                 })
                 .collect();
@@ -1031,7 +1031,7 @@ impl App {
                 .state
                 .available_players
                 .iter()
-                .map(|k| format!("  {} ", k.label()))
+                .map(|k| k.label().to_string())
                 .collect::<Vec<_>>();
             crate::tui::overlay::picker(
                 frame,

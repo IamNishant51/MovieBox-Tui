@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Changed
+- **Symmetrical Popup and Picker Margin Alignment**:
+  - Eliminated lopsided right-side dead space across all floating popup pickers (Theme Picker, Streaming Sources, Media Player, Subtitles, Catalog Browse, and Provider Popup), aligning borders to provide equal horizontal padding on both sides (`│  content  │`).
+  - Corrected `picker_layout` width calculation to `content_width.saturating_add(2)` (accounting for left and right border glyphs) rather than over-allocating `+ 6`, eliminating 4 phantom trailing empty columns.
+  - Standardized symmetrical 2-space padding across all popup picker lines and hit-testing rectangles in `src/tui/app/mouse.rs`.
+  - Updated `overlay::picker` to automatically apply uniform 2-space left and right margins to dynamic items.
+- **Linux ARM64 Production Portability & Installer Hardening**:
+  - Removed Android Bionic TLS assembly hacks (`__bionic_tls_align_anchor`) and Python `PT_TLS` byte-patching from the generic Linux `aarch64-unknown-linux-musl` target, isolating Android Bionic requirements to the dedicated `build-android` (`aarch64-linux-android`) NDK pipeline.
+  - Configured `-C link-arg=-Wl,-z,max-page-size=65536` on `aarch64-unknown-linux-musl`, aligning ELF `PT_LOAD` segments to 64KB to guarantee execution compatibility across 4KB kernels (Raspberry Pi 4B), 16KB kernels (Raspberry Pi 5 / BCM2712), and 64KB kernels (AWS Graviton, enterprise Linux ARM64).
+  - Added a QEMU (`qemu-user-static`) execution smoke test gate in the release CI pipeline for `aarch64-unknown-linux-musl`, actively booting the compiled AArch64 Linux binary and verifying `--version` before packaging.
+  - Enhanced `install.sh` to proactively detect 32-bit Raspbian userland (`getconf LONG_BIT == 32`) on 64-bit ARM hardware, providing an actionable native `cargo install` path rather than attempting incompatible 64-bit binary execution.
+  - Improved `install.sh` smoke test failure diagnostics to capture and print explicit non-zero exit codes when binary execution fails without output.
 - **Modal and Overlay Declutter — Keyhint Footer Removal**:
   - Removed redundant boilerplate footer keyhint bars (`render_modal_footer` / `render_footer`) and top divider borders across all modal dialogs and overlay pickers (Settings, Streaming Sources, Themes, Players, Subtitles, TV Config, Addon Manager, Provider popup).
   - Removed duplicate and truncated popup title headers on option-selection pickers (Media Player, Themes, Sources) so they cleanly present options without repeating row labels.
