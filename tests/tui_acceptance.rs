@@ -727,6 +727,9 @@ async fn test_ctrl_u_and_clear_command_clears_results_cleanly() {
 #[tokio::test]
 async fn test_history_item_space_and_p_key_direct_resume() {
     let mut app = App::new();
+    app.state_mut().is_tv_mode = false;
+    app.state_mut()
+        .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
     app.state_mut().active_screen = Screen::Home;
     app.state_mut().input_mode = InputMode::Normal;
     app.state_mut().search_query.set_content("/history");
@@ -757,6 +760,9 @@ async fn test_history_item_space_and_p_key_direct_resume() {
 #[tokio::test]
 async fn test_history_item_enter_pre_seeds_season_and_episode() {
     let mut app = App::new();
+    app.state_mut().is_tv_mode = false;
+    app.state_mut()
+        .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
     app.state_mut().active_screen = Screen::Home;
     app.state_mut().input_mode = InputMode::Normal;
     app.state_mut().search_query.set_content("/history");
