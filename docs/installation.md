@@ -12,6 +12,8 @@ Install via the automated script:
 curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
 ```
 
+> **Raspberry Pi & Linux ARM64**: Prebuilt Linux ARM64 binaries (`MovieBox_Linux_arm64.tar.gz`) are statically linked musl executables with 64KB page alignment, supporting Raspberry Pi 4B (4KB pages), Raspberry Pi 5 (16KB pages), and ARM cloud servers. Prebuilt binaries require a 64-bit userland (`aarch64`). On 32-bit Raspberry Pi OS (`armhf`), install via Cargo (`cargo install moviebox-tui --locked`).
+
 ### macOS via Homebrew
 
 ```bash

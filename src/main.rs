@@ -4,25 +4,6 @@ use moviebox_tui::tui::app::App;
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-core::arch::global_asm!(
-    ".section .tdata,\"awT\",@progbits",
-    ".p2align 6",
-    ".globl __bionic_tls_align_anchor",
-    "__bionic_tls_align_anchor:",
-    ".text",
-    ".globl __bionic_tls_align_reference",
-    ".type __bionic_tls_align_reference,%function",
-    "__bionic_tls_align_reference:",
-    "add x0, x0, :tprel_lo12_nc:__bionic_tls_align_anchor",
-    "ret",
-    ".size __bionic_tls_align_reference, .-__bionic_tls_align_reference",
-);
-
-#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-unsafe extern "C" {
-    fn __bionic_tls_align_reference();
-}
 struct TerminalGuard;
 
 fn restore_terminal() {
@@ -86,10 +67,6 @@ impl Drop for TerminalGuard {
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-    {
-        core::hint::black_box(__bionic_tls_align_reference as *const ());
-    }
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!("moviebox-tui {}", env!("CARGO_PKG_VERSION"));
