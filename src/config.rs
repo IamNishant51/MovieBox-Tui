@@ -66,7 +66,15 @@ pub fn config_dir() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    dirs::home_dir().map(|h| h.join(".config").join(APP_NAME))
+    if let Some(dir) = dirs::home_dir().map(|h| h.join(".config").join(APP_NAME)) {
+        return Some(dir);
+    }
+    let fallback = std::env::temp_dir().join(APP_NAME).join("config");
+    log::warn!(
+        "unable to locate user config directory, falling back to {}",
+        fallback.display()
+    );
+    Some(fallback)
 }
 
 pub fn data_dir() -> Option<PathBuf> {
@@ -88,7 +96,15 @@ pub fn data_dir() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    dirs::home_dir().map(|h| h.join(".local").join("share").join(APP_NAME))
+    if let Some(dir) = dirs::home_dir().map(|h| h.join(".local").join("share").join(APP_NAME)) {
+        return Some(dir);
+    }
+    let fallback = std::env::temp_dir().join(APP_NAME).join("data");
+    log::warn!(
+        "unable to locate user data directory, falling back to {}",
+        fallback.display()
+    );
+    Some(fallback)
 }
 
 pub fn cache_dir() -> PathBuf {

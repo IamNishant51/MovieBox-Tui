@@ -410,6 +410,11 @@ elif [ "$OS" = "Linux" ]; then
         log_error "Unsupported Linux architecture ($ARCH). Only x86_64 and arm64 are supported."
         exit 1
     fi
+elif case "$OS" in MINGW*|MSYS*|CYGWIN*) true ;; *) false ;; esac; then
+    log_error "Windows environment detected ($OS)."
+    printf "\n  %bℹ%b Please use the official Windows PowerShell installer:\n" "$C_SAPPHIRE" "$C_RESET" >&2
+    printf "    %birm https://raw.githubusercontent.com/%s/main/install.ps1 | iex%b\n\n" "$C_BOLD" "$REPO" "$C_RESET" >&2
+    exit 1
 else
     log_error "Unsupported Operating System ($OS)."
     exit 1
@@ -534,7 +539,7 @@ log_success "[2/4] Downloaded $FILE"
 
 verify_checksum() {
     local expected_sha
-    expected_sha=$(awk -v file="$FILE" '$2 == file {print $1}' "$TMP_DIR/SHA256SUMS")
+    expected_sha=$(awk -v file="$FILE" '{gsub(/^\*/, "", $2); if ($2 == file) print $1}' "$TMP_DIR/SHA256SUMS")
     if [ -z "$expected_sha" ]; then
         return 1
     fi

@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::path::Path;
 
 use super::check::http_client;
@@ -32,16 +31,37 @@ pub async fn download_file(url: &str, destination: &Path) -> Result<(), String> 
                     return Err(format!("download failed with status {status}"));
                 }
 
-                let bytes = resp
-                    .bytes()
+                use futures::StreamExt;
+                use tokio::io::AsyncWriteExt;
+
+                let mut file = tokio::fs::File::create(destination)
                     .await
-                    .map_err(|e| format!("failed to read response bytes: {e}"))?;
-                let mut file = std::fs::File::create(destination)
                     .map_err(|e| format!("failed to create temp download file: {e}"))?;
-                file.write_all(&bytes)
-                    .map_err(|e| format!("failed to write download data: {e}"))?;
-                file.flush()
-                    .map_err(|e| format!("failed to flush download file: {e}"))?;
+
+                let mut stream = resp.bytes_stream();
+                let mut write_err = None;
+                while let Some(chunk_res) = stream.next().await {
+                    match chunk_res {
+                        Ok(chunk) => {
+                            if let Err(e) = file.write_all(&chunk).await {
+                                write_err = Some(format!("failed to write download data: {e}"));
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            write_err = Some(format!("download chunk stream error: {e}"));
+                            break;
+                        }
+                    }
+                }
+                if let Some(err) = write_err {
+                    let _ = tokio::fs::remove_file(destination).await;
+                    return Err(err);
+                }
+                if let Err(e) = file.flush().await {
+                    let _ = tokio::fs::remove_file(destination).await;
+                    return Err(format!("failed to flush download file: {e}"));
+                }
                 return Ok(());
             }
             Err(e) => {

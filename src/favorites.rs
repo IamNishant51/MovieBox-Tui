@@ -68,6 +68,8 @@ impl FavoriteItem {
 pub struct FavoritesManager {
     #[serde(default)]
     pub items: Vec<FavoriteItem>,
+    #[serde(skip)]
+    id_index: std::collections::HashSet<(String, String, i64)>,
 }
 
 impl FavoritesManager {
@@ -86,7 +88,10 @@ impl FavoritesManager {
         if path.exists() {
             match fs::read_to_string(path) {
                 Ok(content) => match serde_json::from_str::<Self>(&content) {
-                    Ok(manager) => return manager,
+                    Ok(mut manager) => {
+                        manager.rebuild_index();
+                        return manager;
+                    }
                     Err(e) => {
                         let stamp = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
@@ -126,12 +131,34 @@ impl FavoritesManager {
         }
     }
 
+    pub fn rebuild_index(&mut self) {
+        self.id_index.clear();
+        for item in &self.items {
+            let prov_canonical = crate::providers::models::ProviderKind::parse(&item.provider)
+                .map(|p| p.cache_key().to_string())
+                .unwrap_or_else(|| item.provider.trim().to_ascii_lowercase());
+            self.id_index
+                .insert((prov_canonical, item.subject_id.clone(), item.stype));
+        }
+    }
+
     pub fn is_favorite(&self, identity: &crate::models::SubjectIdentity<'_>) -> bool {
+        if !identity.subject_id.is_empty() {
+            let prov_canonical = crate::providers::models::ProviderKind::parse(identity.provider)
+                .map(|p| p.cache_key().to_string())
+                .unwrap_or_else(|| identity.provider.trim().to_ascii_lowercase());
+            if self.id_index.contains(&(
+                prov_canonical,
+                identity.subject_id.to_string(),
+                identity.stype,
+            )) {
+                return true;
+            }
+        }
         self.items
             .iter()
             .any(|item| item.identity().matches(identity))
     }
-
     pub fn toggle(&mut self, item: FavoriteItem) -> bool {
         let now_favorited = if let Some(pos) = self
             .items
@@ -144,17 +171,20 @@ impl FavoritesManager {
             self.items.push(item);
             true
         };
+        self.rebuild_index();
         self.save();
         now_favorited
     }
 
     pub fn remove(&mut self, identity: &crate::models::SubjectIdentity<'_>) {
         self.items.retain(|item| !item.identity().matches(identity));
+        self.rebuild_index();
         self.save();
     }
 
     pub fn clear(&mut self) {
         self.items.clear();
+        self.rebuild_index();
         self.save();
     }
 }
@@ -162,7 +192,6 @@ impl FavoritesManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     fn dummy_item(
         provider: &str,
         subject_id: &str,

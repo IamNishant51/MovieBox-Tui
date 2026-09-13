@@ -143,7 +143,8 @@ impl App {
 
         let is_dash = link.ends_with(".mpd") || link.contains("/dash/");
 
-        tokio::spawn(async move {
+        self.request_tasks.cancel_download();
+        let handle = tokio::spawn(async move {
             if let Err(error) = tokio::fs::create_dir_all(&target_dir).await {
                 sender
                     .send(Action::DownloadFailed(format!(
@@ -253,10 +254,9 @@ impl App {
                 {
                     cmd.creation_flags(crate::player::CREATE_NO_WINDOW);
                 }
-
+                cmd.kill_on_drop(true);
                 cmd.stdout(std::process::Stdio::piped());
                 cmd.stderr(std::process::Stdio::piped());
-
                 let mut child = match cmd.spawn() {
                     Ok(child) => child,
                     Err(err) => {
@@ -447,6 +447,18 @@ impl App {
                 }
             }
         });
+        let fail_sender = self.action_sender.clone();
+        let watcher = tokio::spawn(async move {
+            if let Err(e) = handle.await
+                && e.is_panic()
+            {
+                log::error!("download task panicked: {e}");
+                let _ = fail_sender.send(Action::DownloadFailed(
+                    "Download task failed unexpectedly".to_string(),
+                ));
+            }
+        });
+        self.request_tasks.download = Some(watcher);
     }
 }
 

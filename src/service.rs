@@ -420,11 +420,13 @@ pub fn extract_browse_metrics(item: &serde_json::Value) -> BrowseMetrics {
 }
 
 pub fn resolve_subtitle_dir() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
-        let storage = home.join("storage/downloads/moviebox_subs");
-        if home.join("storage/downloads").exists() {
-            let _ = std::fs::create_dir_all(&storage);
-            return storage;
+    if crate::updater::artifact::is_termux_environment() {
+        if let Some(home) = dirs::home_dir() {
+            let storage = home.join("storage/downloads/moviebox_subs");
+            if home.join("storage/downloads").exists() {
+                let _ = std::fs::create_dir_all(&storage);
+                return storage;
+            }
         }
     }
     crate::config::cache_dir().join("subs")

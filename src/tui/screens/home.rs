@@ -690,9 +690,7 @@ pub(crate) fn render_landing_deck(frame: &mut Frame, area: Rect, state: &AppStat
         let pill_style = if state.basic_terminal {
             theme.sapphire
         } else {
-            let bg = theme.surface1.fg.unwrap_or(theme.base);
-            let fg = theme.sapphire.fg.unwrap_or(theme.base);
-            Style::default().bg(bg).fg(fg)
+            theme.sapphire.add_modifier(Modifier::BOLD)
         };
         let pill_area = Rect {
             x: inner_area.x,
@@ -958,9 +956,7 @@ fn render_search_bar(
             let style = if state.basic_terminal {
                 theme.lavender
             } else {
-                let bg = theme.surface1_color();
-                let fg = theme.lavender.fg.unwrap_or(theme.base);
-                Style::default().bg(bg).fg(fg)
+                theme.lavender.add_modifier(Modifier::BOLD)
             };
             (text, style)
         } else if state.active_provider == crate::providers::models::ProviderKind::Addons {
@@ -968,9 +964,7 @@ fn render_search_bar(
             let style = if state.basic_terminal {
                 theme.teal
             } else {
-                let bg = theme.surface1_color();
-                let fg = theme.teal.fg.unwrap_or(theme.base);
-                Style::default().bg(bg).fg(fg)
+                theme.teal.add_modifier(Modifier::BOLD)
             };
             (text, style)
         } else {
@@ -984,9 +978,7 @@ fn render_search_bar(
             let style = if state.basic_terminal {
                 theme.sapphire
             } else {
-                let bg = theme.surface1_color();
-                let fg = theme.sapphire.fg.unwrap_or(theme.base);
-                Style::default().bg(bg).fg(fg)
+                theme.sapphire.add_modifier(Modifier::BOLD)
             };
             (text, style)
         };

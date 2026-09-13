@@ -31,9 +31,16 @@ impl EventHandler {
             loop {
                 tokio::select! {
                     _ = tick_interval.tick() => {
+                        if event_sender.is_closed() {
+                            break;
+                        }
                         let _ = event_sender.try_send(Action::Tick);
                     }
-                    Some(event) = reader.next() => {
+                    event_opt = reader.next() => {
+                        let Some(event) = event_opt else { break; };
+                        if event_sender.is_closed() {
+                            break;
+                        }
                         match event {
                             Ok(CrosstermEvent::Key(key)) => {
                                 if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {

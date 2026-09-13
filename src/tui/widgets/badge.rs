@@ -1,5 +1,5 @@
 use ratatui::{
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::Span,
 };
 
@@ -76,59 +76,80 @@ pub fn resolution_badge_spans<'a>(
         return vec![Span::styled(format!("{:<7}", label), style), Span::raw(" ")];
     }
 
+    let is_light = theme.is_light;
     let (badge_bg, contrast_fg, label) = match resolution {
-        -1 => (
+        -1 => {
+            let accent_color = theme.lavender.fg.unwrap_or(theme.base);
             if is_selected {
-                theme.lavender.fg.unwrap_or(theme.base)
+                (
+                    accent_color,
+                    if is_light {
+                        Color::White
+                    } else {
+                        theme.crust_color()
+                    },
+                    " Multi ",
+                )
+            } else if is_light {
+                (theme.surface2_color(), accent_color, " Multi ")
             } else {
-                theme.surface1_color()
-            },
+                (theme.surface1_color(), accent_color, " Multi ")
+            }
+        }
+        2160 | 4320 => {
+            let accent_color = theme.rating.fg.unwrap_or(theme.base);
             if is_selected {
-                theme.crust_color()
+                (
+                    accent_color,
+                    if is_light {
+                        Color::White
+                    } else {
+                        theme.crust_color()
+                    },
+                    "  4K   ",
+                )
+            } else if is_light {
+                (theme.surface2_color(), accent_color, "  4K   ")
             } else {
-                theme.lavender.fg.unwrap_or(theme.base)
-            },
-            " Multi ",
-        ),
-        2160 | 4320 => (
+                (theme.surface1_color(), accent_color, "  4K   ")
+            }
+        }
+        1080 => {
+            let accent_color = theme.sapphire.fg.unwrap_or(theme.base);
             if is_selected {
-                theme.rating.fg.unwrap_or(theme.base)
+                (
+                    accent_color,
+                    if is_light {
+                        Color::White
+                    } else {
+                        theme.crust_color()
+                    },
+                    " 1080p ",
+                )
+            } else if is_light {
+                (theme.surface2_color(), accent_color, " 1080p ")
             } else {
-                theme.surface1_color()
-            },
+                (theme.surface1_color(), accent_color, " 1080p ")
+            }
+        }
+        720 => {
+            let accent_color = theme.teal.fg.unwrap_or(theme.base);
             if is_selected {
-                theme.crust_color()
+                (
+                    accent_color,
+                    if is_light {
+                        Color::White
+                    } else {
+                        theme.crust_color()
+                    },
+                    " 720p  ",
+                )
+            } else if is_light {
+                (theme.surface2_color(), accent_color, " 720p  ")
             } else {
-                theme.rating.fg.unwrap_or(theme.base)
-            },
-            "  4K   ",
-        ),
-        1080 => (
-            if is_selected {
-                theme.sapphire.fg.unwrap_or(theme.base)
-            } else {
-                theme.surface1_color()
-            },
-            if is_selected {
-                theme.crust_color()
-            } else {
-                theme.sapphire.fg.unwrap_or(theme.base)
-            },
-            " 1080p ",
-        ),
-        720 => (
-            if is_selected {
-                theme.teal.fg.unwrap_or(theme.base)
-            } else {
-                theme.surface1_color()
-            },
-            if is_selected {
-                theme.crust_color()
-            } else {
-                theme.teal.fg.unwrap_or(theme.base)
-            },
-            " 720p  ",
-        ),
+                (theme.surface1_color(), accent_color, " 720p  ")
+            }
+        }
         480 | 540 | 576 => (
             theme.surface2_color(),
             theme.text.fg.unwrap_or(theme.base),
@@ -150,7 +171,6 @@ pub fn resolution_badge_spans<'a>(
             "  SD   ",
         ),
     };
-
     vec![
         Span::styled(
             label,

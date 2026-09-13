@@ -2,6 +2,50 @@
 
 ## [Unreleased]
 
+### Added
+- **VLC MovieBox DASH and Signed Cookie Streaming Compatibility**:
+  - Added a detached loopback HTTP sidecar proxy (`--proxy-for-vlc`) enabling VLC playback for MovieBox MPEG-DASH and MP4 streams protected by AWS CloudFront signed cookies (`CloudFront-Policy`, `CloudFront-Signature`, `CloudFront-Key-Pair-Id`).
+  - Implemented hierarchical path proxy routing (`/https/<host>/path` and `/http/<host>/path`) in `src/proxy.rs`; VLC's adaptive demuxer resolves relative segment URLs against the proxy path, eliminating query-string stripping that caused 400 Bad Request on DASH segment fetches.
+  - Added in-flight DASH manifest rewriter targeting origin CDN hosts to rewrite relative and absolute segment URLs to route through the local proxy.
+  - Added zero-copy chunked streaming using `reqwest::Response::bytes_stream()` for constant-memory chunk forwarding without buffering full segments in RAM.
+  - Configured platform process detachment via `process_group(0)` on Unix and `DETACHED_PROCESS` with `CREATE_NEW_PROCESS_GROUP` on Windows, ensuring streaming survives terminal window closure.
+  - Updated `supports_headers` and `header_capable_players` in `src/player.rs` to allow VLC as a supported player for all streaming sources.
+
+
+### Fixed
+- **VLC Sidecar Proxy Correctness**:
+  - Replaced `reqwest::Client::timeout(30s)` (a hard deadline over the entire response body) with `connect_timeout(15s)` only; per-chunk idle timeout (60s) now signals stalled transfers without terminating long-running video streams mid-playback.
+  - Introduced a `ConnectionGuard` RAII wrapper ensuring `active_connections` is atomically decremented even when a connection handler task panics, eliminating a counter leak that kept the sidecar alive indefinitely under 24/7 operation.
+  - Set watchdog idle threshold to 10 minutes (600s) with a 15-second polling interval; removed parent-PID liveness polling — the sidecar is fully detached and exits cleanly after 10 minutes of inactivity with no active connections.
+  - Fixed host-authority extraction to preserve explicit port numbers (e.g. `cdn.example.com:8080`) in DASH manifest segment URL rewriting; previously the port was stripped, routing manifest-relative segments to the wrong CDN endpoint and causing 400/403 errors.
+  - Capped HTTP request-line and header reads at 8 KiB per line and 64 headers per request, preventing unbounded `read_line` memory growth from malformed or adversarial clients.
+  - Added `child.wait()` after `child.kill()` on proxy spawn failure to reap the child process and avoid zombie accumulation.
+- **Search Poster Loader**: Cleared `in_flight_posters` when navigating back from the Details screen (`GoBack` → `Screen::Details` path) so that poster fetch tasks cancelled mid-flight no longer leave permanent "Loading..." placeholders on the next visit.
+- **Stream Cache TTL**: `set_provider_stream_cache_typed` now parses `DateLessThan` / `AWS:EpochTime` from the `CloudFront-Policy` Base64 payload embedded in release `Cookie` headers and caps the on-disk cache TTL to `min(2h, cf_expiry_remaining)` (floor 60s), preventing stale cached stream URLs from being served after CloudFront signed-cookie expiry.
+- **Process & Task Lifecycle Resilience**:
+  - Configured `kill_on_drop(true)` on `tokio::process::Command` when spawning `yt-dlp` in `start_resilient_download`, preventing orphaned download worker processes from continuing in the background if tasks are cancelled.
+  - Added `JoinHandle` tracking for active download workers in `RequestTaskHandles`, pairing it with an asynchronous watcher that catches background worker panics and dispatches `Action::DownloadFailed` to prevent permanent state lockup.
+  - Hardened loopback proxy sidecar accept loop to catch transient I/O and network errors (`EMFILE`, `ECONNABORTED`, `EINTR`) with a 50ms backoff sleep, preventing premature daemon exit under socket pressure.
+  - Ensured `fetch_cancel` Arc is rotated to a fresh instance and active stream/details fetch tasks are explicitly aborted upon navigating back from the Details screen (`GoBack`), preventing subsequent searches from being poisoned by aborted states.
+  - Wrapped `Action::CheckForUpdates` in a strict 15-second timeout, preventing indefinite UI loading states during transient network drops or GitHub API stalls.
+  - Threaded explicit task cancellation across `RequestTaskHandles`, download cancellation tokens, and search fetch tokens upon receiving `Action::Quit`, ensuring all background I/O operations terminate before the terminal exits.
+  - Replaced detached spawned tasks in `AddonClient::fetch_addon_streams` with direct futures via `futures::future::join_all`, ensuring that cancelled stream lookups immediately drop pending addon network requests.
+  - Added sandbox environment detection for Flatpak (`FLATPAK_ID`, `/.flatpak-info`) and Snap (`SNAP`) in `src/updater`, preventing corrupt in-app self-update writes on read-only mountpoints and guiding users to their package managers.
+  - Staged update binaries in the directory adjacent to `current_exe` rather than a temporary filesystem mount, ensuring atomic replacement across distinct storage partitions (`EXDEV`).
+  - Fixed Windows update helper double-spawn race condition by ensuring the parent process terminates immediately without invoking redundant exec/spawn wrappers.
+  - Added root uid check (`libc::getuid() == 0`) before probing `/system/bin/am` on Android outside Termux, preventing SELinux exit code 126 crashes on modern Android releases.
+  - Gated Android `/storage/downloads` subtitle path probing with `is_termux_environment()`, preventing non-Android systems with `~/storage` from misrouting subtitle files.
+  - Updated `config_dir()` and `data_dir()` to fall back to `std::env::temp_dir()` with an explicit warning when user directories cannot be resolved.
+  - Updated `install.sh` to provide clear guidance when invoked on Windows MINGW/MSYS/Cygwin environments, and hardened SHA256 checksum parsing against leading asterisk formatting.
+- **TUI & Render Hot-Path Efficiency**:
+  - Added `id_index` (`HashSet<(String, String, i64)>`) to `FavoritesManager`, eliminating $O(N)$ linear scans across visible result cards on every render frame.
+  - Bound window title recomputations in `contextual_title()` to dirty frame updates or initial launches, eliminating per-tick allocations.
+  - Added active screen and editing mode guards to search suggestion debounce in `Action::Tick`, skipping redundant string operations when not actively typing queries.
+  - Consolidated duplicate theme picker keyboard navigation actions (`Up`, `Down`, `Home`, `End`, `PageUp`, `PageDown`) into a single state change handler.
+  - Pruned unused scaffolding structs (`UiState`, `CatalogState`, `PlaybackState`, `DownloadState`) from `src/tui/state.rs`.
+  - Pruned obsolete and unused action variants (`ProbeTerminal`, `ShowSettingsPopup`, `CloseSettingsPopup`) from `src/tui/action.rs` and consolidated settings handlers.
+  - Consolidated all video playback launches through canonical `LaunchPlayback` actions, removing misleading and redundant `LaunchMpv` aliases.
+  - Prioritized `termux-am` ahead of `termux-open` in Android opener probing to preserve HTTP request headers and subtitle arguments.
 ### Changed
 - **Symmetrical Popup and Picker Margin Alignment**:
   - Eliminated lopsided right-side dead space across all floating popup pickers (Theme Picker, Streaming Sources, Media Player, Subtitles, Catalog Browse, and Provider Popup), aligning borders to provide equal horizontal padding on both sides (`│  content  │`).

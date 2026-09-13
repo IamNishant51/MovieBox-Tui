@@ -32,6 +32,17 @@ pub async fn perform_self_update(
                 "Android / Termux update: run 'curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash'".to_string(),
             ));
         }
+        InstallationEnvironment::Flatpak => {
+            return Ok(SelfUpdateOutcome::RequiresManualUpgrade(
+                "Running inside Flatpak. Please update via: flatpak update".to_string(),
+            ));
+        }
+        InstallationEnvironment::Snap => {
+            return Ok(SelfUpdateOutcome::RequiresManualUpgrade(
+                "Running inside Snap. Please update via: sudo snap refresh moviebox-tui"
+                    .to_string(),
+            ));
+        }
         InstallationEnvironment::ReadOnly => {
             return Ok(SelfUpdateOutcome::RequiresManualUpgrade(
                 "MovieBox-Tui binary is not user-writable. Please update via your system package manager.".to_string(),
@@ -61,11 +72,7 @@ pub async fn perform_self_update(
         .map_err(|e| format!("failed to create temporary update directory: {e}"))?;
 
     let archive_path = temp_dir.path().join(&asset.name);
-    let staged_binary_path = if env == InstallationEnvironment::WindowsHelper {
-        apply::persistent_staging_path(&current_exe)
-    } else {
-        temp_dir.path().join(platform.expected_binary_name())
-    };
+    let staged_binary_path = apply::persistent_staging_path(&current_exe);
 
     if let Some(tx) = progress_sender {
         let _ = tx.send(format!("Downloading {}...", asset.name));

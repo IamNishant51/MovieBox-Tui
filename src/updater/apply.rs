@@ -15,11 +15,21 @@ pub enum InstallationEnvironment {
     DirectReplace,
     Homebrew,
     Termux,
+    Flatpak,
+    Snap,
     ReadOnly,
     WindowsHelper,
 }
 
 pub fn detect_environment(exe_path: &Path) -> InstallationEnvironment {
+    if std::env::var_os("FLATPAK_ID").is_some() || Path::new("/.flatpak-info").exists() {
+        return InstallationEnvironment::Flatpak;
+    }
+
+    if std::env::var_os("SNAP").is_some() {
+        return InstallationEnvironment::Snap;
+    }
+
     if super::artifact::is_termux_environment() {
         return InstallationEnvironment::Termux;
     }
@@ -27,7 +37,6 @@ pub fn detect_environment(exe_path: &Path) -> InstallationEnvironment {
     if is_homebrew_managed(exe_path) {
         return InstallationEnvironment::Homebrew;
     }
-
     if cfg!(windows) {
         return InstallationEnvironment::WindowsHelper;
     }
@@ -92,6 +101,16 @@ pub fn apply_staged_binary(
         InstallationEnvironment::Termux => {
             Ok(SelfUpdateOutcome::RequiresManualUpgrade(
                 "Android / Termux update: run 'curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash'".to_string(),
+            ))
+        }
+        InstallationEnvironment::Flatpak => {
+            Ok(SelfUpdateOutcome::RequiresManualUpgrade(
+                "Running inside Flatpak. Please update via: flatpak update".to_string(),
+            ))
+        }
+        InstallationEnvironment::Snap => {
+            Ok(SelfUpdateOutcome::RequiresManualUpgrade(
+                "Running inside Snap. Please update via: sudo snap refresh moviebox-tui".to_string(),
             ))
         }
         InstallationEnvironment::ReadOnly => {

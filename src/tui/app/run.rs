@@ -91,10 +91,12 @@ impl App {
                 let _ = crossterm::execute!(std::io::stdout(), style);
                 self.state.cursor_beam = want_beam;
             }
-            let title = self.contextual_title();
-            if title != last_window_title {
-                let _ = crate::tui::terminal::set_window_title(&title);
-                last_window_title = title;
+            if self.state.dirty || last_window_title.is_empty() {
+                let title = self.contextual_title();
+                if title != last_window_title {
+                    let _ = crate::tui::terminal::set_window_title(&title);
+                    last_window_title = title;
+                }
             }
             self.state.normalize_result_view();
             if self.state.clear_terminal_before_draw {
@@ -321,6 +323,13 @@ impl App {
         }
         match action {
             Action::Quit => {
+                self.request_tasks.cancel_all();
+                self.state
+                    .cancel_download
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                self.state
+                    .fetch_cancel
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
                 return Some(());
             }
 
@@ -330,26 +339,6 @@ impl App {
 
             Action::MouseClick(col, row) => {
                 self.handle_mouse(col, row);
-            }
-
-            Action::ProbeTerminal => {
-                self.probe_terminal().await;
-                let outcome = if self.state.image_supported {
-                    let protocol = self
-                        .state
-                        .image_picker
-                        .as_ref()
-                        .map(|picker| format!("{:?}", picker.protocol_type()))
-                        .unwrap_or_default();
-                    format!("Graphics protocol: {protocol}")
-                } else {
-                    "No graphics protocol detected; using text placeholders".to_string()
-                };
-                self.state.notify(
-                    crate::tui::overlay::NotificationKind::Info,
-                    "Terminal probe",
-                    outcome,
-                );
             }
 
             Action::WheelScroll { up } => {
@@ -395,8 +384,6 @@ impl App {
             | Action::SelfUpdateProgress(..)
             | Action::SelfUpdateComplete(..)
             | Action::ToggleSettingsPopup
-            | Action::ShowSettingsPopup
-            | Action::CloseSettingsPopup
             | Action::SelectSettingsCategory(..)
             | Action::SettingsAdjustValue(..)
             | Action::SettingsActivateRow
@@ -468,7 +455,6 @@ impl App {
             Action::PlayStream
             | Action::ShowSubtitlePopup(..)
             | Action::ShowDownloadSubtitlePopup(..)
-            | Action::LaunchMpv(..)
             | Action::LaunchPlayback(..)
             | Action::DispatchPlayback(..)
             | Action::LaunchPlayer(..)
@@ -1161,6 +1147,24 @@ impl App {
                         .alignment(Alignment::Center),
                     );
                 }
+                crate::updater::apply::InstallationEnvironment::Flatpak => {
+                    text.push(
+                        Line::from(vec![Span::styled(
+                            "Flatpak sandbox • Run: flatpak update",
+                            self.theme.accent,
+                        )])
+                        .alignment(Alignment::Center),
+                    );
+                }
+                crate::updater::apply::InstallationEnvironment::Snap => {
+                    text.push(
+                        Line::from(vec![Span::styled(
+                            "Snap sandbox • Run: sudo snap refresh moviebox-tui",
+                            self.theme.accent,
+                        )])
+                        .alignment(Alignment::Center),
+                    );
+                }
                 crate::updater::apply::InstallationEnvironment::ReadOnly => {
                     text.push(
                         Line::from(vec![Span::styled(
@@ -1340,6 +1344,8 @@ impl App {
                     }
                 }
                 crate::updater::apply::InstallationEnvironment::Termux
+                | crate::updater::apply::InstallationEnvironment::Flatpak
+                | crate::updater::apply::InstallationEnvironment::Snap
                 | crate::updater::apply::InstallationEnvironment::ReadOnly => {
                     if is_compact_modal {
                         vec![

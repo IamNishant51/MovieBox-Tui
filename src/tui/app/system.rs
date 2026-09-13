@@ -35,33 +35,37 @@ impl App {
                     self.state.dirty = true;
                 }
 
-                let query_trimmed = self.state.search_query.as_str().trim();
-                if query_trimmed != self.state.last_suggest_query.as_str()
-                    && self.state.last_search_edit.elapsed()
-                        >= std::time::Duration::from_millis(350)
+                if self.state.input_mode == crate::tui::state::InputMode::Editing
+                    && self.state.active_screen == crate::tui::state::Screen::Home
                 {
-                    self.state.last_suggest_query.clear();
-                    self.state.last_suggest_query.push_str(query_trimmed);
-                    if !query_trimmed.is_empty() {
-                        if self.state.is_tv_mode && !query_trimmed.starts_with('/') {
-                            let q = query_trimmed.to_lowercase();
-                            self.state.search_suggestions = self
-                                .state
-                                .tv_channels
-                                .iter()
-                                .filter(|c| c.name.to_lowercase().contains(&q))
-                                .take(10)
-                                .map(|c| c.name.clone())
-                                .collect();
-                            self.state.dirty = true;
+                    let query_trimmed = self.state.search_query.as_str().trim();
+                    if query_trimmed != self.state.last_suggest_query.as_str()
+                        && self.state.last_search_edit.elapsed()
+                            >= std::time::Duration::from_millis(350)
+                    {
+                        self.state.last_suggest_query.clear();
+                        self.state.last_suggest_query.push_str(query_trimmed);
+                        if !query_trimmed.is_empty() {
+                            if self.state.is_tv_mode && !query_trimmed.starts_with('/') {
+                                let q = query_trimmed.to_lowercase();
+                                self.state.search_suggestions = self
+                                    .state
+                                    .tv_channels
+                                    .iter()
+                                    .filter(|c| c.name.to_lowercase().contains(&q))
+                                    .take(10)
+                                    .map(|c| c.name.clone())
+                                    .collect();
+                                self.state.dirty = true;
+                            } else {
+                                self.action_sender
+                                    .send(Action::Suggest(query_trimmed.to_string()))
+                                    .ok();
+                            }
                         } else {
-                            self.action_sender
-                                .send(Action::Suggest(query_trimmed.to_string()))
-                                .ok();
+                            self.state.search_suggestions.clear();
+                            self.state.dirty = true;
                         }
-                    } else {
-                        self.state.search_suggestions.clear();
-                        self.state.dirty = true;
                     }
                 }
 
@@ -294,30 +298,6 @@ impl App {
                     self.state.show_sources_popup = false;
                     self.persist_config();
                 }
-            }
-
-            Action::ShowSettingsPopup => {
-                for player in crate::tui::player::detect() {
-                    if !self.state.available_players.contains(&player) {
-                        self.state.available_players.push(player);
-                    }
-                }
-                self.state.ensure_default_player();
-                self.state.show_settings_popup = true;
-                self.state.settings_category = crate::tui::state::SettingsCategory::General;
-                self.state.settings_selected_row = 0;
-                self.state.settings_download_dir_input = None;
-                self.state.settings_player_picker = false;
-                self.state.show_sources_popup = false;
-                self.state.input_mode = crate::tui::state::InputMode::Normal;
-            }
-
-            Action::CloseSettingsPopup => {
-                self.state.show_settings_popup = false;
-                self.state.settings_download_dir_input = None;
-                self.state.settings_player_picker = false;
-                self.state.show_sources_popup = false;
-                self.persist_config();
             }
 
             Action::SelectSettingsCategory(cat) => {
@@ -692,11 +672,15 @@ impl App {
                 self.state.is_checking_updates = true;
                 let update_sender = self.action_sender.clone();
                 tokio::spawn(async move {
-                    let task =
-                        tokio::spawn(crate::updater::check_release(env!("CARGO_PKG_VERSION")));
-                    let result = match task.await {
+                    let check_future = crate::updater::check_release(env!("CARGO_PKG_VERSION"));
+                    let result = match tokio::time::timeout(
+                        std::time::Duration::from_secs(15),
+                        check_future,
+                    )
+                    .await
+                    {
                         Ok(res) => res,
-                        Err(join_err) => Err(format!("update check task error: {join_err}")),
+                        Err(_) => Err("update check timed out after 15 seconds".to_string()),
                     };
                     update_sender.send(Action::UpdateAvailable(result)).ok();
                 });
@@ -860,6 +844,7 @@ impl App {
                         )
                         .ok();
 
+                        #[cfg(unix)]
                         if let Ok(exe_path) = std::env::current_exe() {
                             if let Err(e) = crate::updater::restart_process(&exe_path) {
                                 log::error!("failed to restart process after update: {e}");

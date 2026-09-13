@@ -280,7 +280,59 @@ pub fn set_provider_stream_cache_typed(
         return;
     }
     let path = get_provider_stream_path(provider, subject_id, season, episode);
-    set_typed_cache(&path, STREAM_CACHE_EXPIRY_SECS, releases);
+    let ttl = stream_cache_ttl_secs(releases);
+    set_typed_cache(&path, ttl, releases);
+}
+
+fn stream_cache_ttl_secs(releases: &[Release]) -> u64 {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let min_cf_expiry = releases
+        .iter()
+        .flat_map(|r| &r.mirrors)
+        .flat_map(|mirror| &mirror.headers)
+        .filter(|(name, _)| name.eq_ignore_ascii_case("cookie"))
+        .flat_map(|(_, val)| val.split(';'))
+        .filter_map(|part| {
+            let policy_raw = part.trim().strip_prefix("CloudFront-Policy=")?;
+            cf_policy_date_less_than(policy_raw)
+        })
+        .min();
+    let cf_remaining = min_cf_expiry
+        .and_then(|exp| exp.checked_sub(now))
+        .unwrap_or(STREAM_CACHE_EXPIRY_SECS);
+    cf_remaining.clamp(60, STREAM_CACHE_EXPIRY_SECS)
+}
+
+fn cf_policy_date_less_than(policy_raw: &str) -> Option<u64> {
+    use base64::Engine as _;
+    let mut normalized: String = policy_raw
+        .trim()
+        .chars()
+        .map(|c| match c {
+            '-' => '+',
+            '_' => '=',
+            '~' => '/',
+            other => other,
+        })
+        .collect();
+    let padding = (4 - normalized.len() % 4) % 4;
+    if padding > 0 {
+        normalized.push_str(&"=".repeat(padding));
+    }
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(normalized.as_bytes())
+        .ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    json.get("Statement")?
+        .as_array()?
+        .first()?
+        .get("Condition")?
+        .get("DateLessThan")?
+        .get("AWS:EpochTime")?
+        .as_u64()
 }
 
 pub fn invalidate_provider_stream_cache(

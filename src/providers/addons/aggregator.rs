@@ -35,7 +35,7 @@ pub async fn aggregate_streams(
         let id_clone = stream_id.clone();
         let m_type = media_type.to_string();
 
-        tasks.push(tokio::spawn(async move {
+        tasks.push(async move {
             let streams_res = client_clone
                 .fetch_streams(&base_url, &m_type, &id_clone)
                 .await;
@@ -57,14 +57,14 @@ pub async fn aggregate_streams(
                 }
                 Err(_) => (Vec::new(), None),
             }
-        }));
+        });
     }
 
     let results = futures::future::join_all(tasks).await;
     let mut all_releases = Vec::new();
     let mut blocked_addons = Vec::new();
 
-    for res in results.into_iter().flatten() {
+    for res in results {
         all_releases.extend(res.0);
         if let Some(blocked) = res.1 {
             blocked_addons.push(blocked);

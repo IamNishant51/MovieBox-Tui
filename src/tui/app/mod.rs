@@ -24,6 +24,7 @@ pub struct RequestTaskHandles {
     pub streams: Option<tokio::task::JoinHandle<()>>,
     pub suggest: Option<tokio::task::JoinHandle<()>>,
     pub homepage: Option<tokio::task::JoinHandle<()>>,
+    pub download: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl RequestTaskHandles {
@@ -56,6 +57,11 @@ impl RequestTaskHandles {
             h.abort();
         }
     }
+    pub fn cancel_download(&mut self) {
+        if let Some(h) = self.download.take() {
+            h.abort();
+        }
+    }
 
     pub fn cancel_all(&mut self) {
         self.cancel_search();
@@ -63,6 +69,7 @@ impl RequestTaskHandles {
         self.cancel_streams();
         self.cancel_suggest();
         self.cancel_homepage();
+        self.cancel_download();
     }
 }
 

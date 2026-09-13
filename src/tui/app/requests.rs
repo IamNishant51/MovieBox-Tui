@@ -255,8 +255,8 @@ impl App {
                 let manifest_url = target.manifest_url.clone();
                 let r_type = target.r#type.clone();
                 let cat_id = target.catalog_id.clone();
-
-                tokio::spawn(async move {
+                self.request_tasks.cancel_search();
+                self.request_tasks.search = Some(tokio::spawn(async move {
                     let result = service
                         .fetch_addon_catalog(&manifest_url, &r_type, &cat_id)
                         .await;
@@ -278,7 +278,7 @@ impl App {
                                 .ok();
                         }
                     }
-                });
+                }));
             }
 
             Action::SearchSuccess {
@@ -1329,7 +1329,8 @@ impl App {
                         .unwrap_or(season > 0);
 
                     let has_stream_addons = addons.iter().any(|a| a.enabled && a.provides_stream);
-                    tokio::spawn(async move {
+                    self.request_tasks.cancel_streams();
+                    self.request_tasks.streams = Some(tokio::spawn(async move {
                         if !has_stream_addons {
                             sender
                                 .send(Action::EpisodeStreamsFailed(
@@ -1388,7 +1389,7 @@ impl App {
                                 ))
                                 .ok();
                         }
-                    });
+                    }));
                     return None;
                 }
 
@@ -1398,7 +1399,8 @@ impl App {
                     let circleftp_client = self.service.circleftp_client.clone();
                     let dhakaflix_client = self.service.dhakaflix_client.clone();
                     let id = subject_id.clone();
-                    tokio::spawn(async move {
+                    self.request_tasks.cancel_streams();
+                    self.request_tasks.streams = Some(tokio::spawn(async move {
                         let result = match context.provider {
                             ProviderKind::FourKHdHub => {
                                 if let Some(client) = fourk_client.as_ref() {
@@ -1477,7 +1479,7 @@ impl App {
                                     .ok();
                             }
                         }
-                    });
+                    }));
                     return None;
                 }
 

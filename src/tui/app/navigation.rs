@@ -418,7 +418,12 @@ impl App {
                     Screen::Details => {
                         self.state
                             .fetch_cancel
-                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                        self.state.fetch_cancel =
+                            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                        self.request_tasks.cancel_details();
+                        self.request_tasks.cancel_streams();
+                        self.state.in_flight_posters.clear();
                         self.state.active_preview_request =
                             self.state.active_preview_request.wrapping_add(1);
                         self.state.active_details_request =
@@ -738,9 +743,17 @@ impl App {
                         source.subtitle = sub_url;
                         self.dispatch_playback_or_notify(source);
                     } else if let Some(link) = self.state.pending_play_link.take() {
-                        self.action_sender
-                            .send(Action::LaunchMpv(link, sub_url))
-                            .ok();
+                        let source = crate::providers::models::PlaybackSource {
+                            provider: self.state.active_provider,
+                            url: link,
+                            headers: vec![(
+                                "User-Agent".to_string(),
+                                self.service.client.user_agent().to_string(),
+                            )],
+                            subtitle: sub_url,
+                            source_label: "Direct".to_string(),
+                        };
+                        self.dispatch_playback_or_notify(source);
                     }
                     return None;
                 } else if self.state.is_download_subtitle_popup {
@@ -783,9 +796,14 @@ impl App {
                         idx_opt.and_then(|idx| self.state.search_results.get(idx).cloned());
                     if let Some(item) = item_opt {
                         if self.state.is_tv_mode || item.stype == 3 {
-                            self.action_sender
-                                .send(Action::LaunchMpv(item.id.clone(), None))
-                                .ok();
+                            let source = crate::providers::models::PlaybackSource {
+                                provider: item.provider,
+                                url: item.id.clone(),
+                                headers: Vec::new(),
+                                subtitle: None,
+                                source_label: "Live TV".to_string(),
+                            };
+                            self.dispatch_playback_or_notify(source);
                             return None;
                         }
                         self.state.active_screen = Screen::Details;
@@ -863,9 +881,14 @@ impl App {
         let item_opt = idx_opt.and_then(|idx| self.state.search_results.get(idx).cloned());
         if let Some(item) = item_opt {
             if self.state.is_tv_mode || item.stype == 3 {
-                self.action_sender
-                    .send(Action::LaunchMpv(item.id.clone(), None))
-                    .ok();
+                let source = crate::providers::models::PlaybackSource {
+                    provider: item.provider,
+                    url: item.id.clone(),
+                    headers: Vec::new(),
+                    subtitle: None,
+                    source_label: "Live TV".to_string(),
+                };
+                self.dispatch_playback_or_notify(source);
                 return;
             }
             self.state.active_screen = Screen::Details;

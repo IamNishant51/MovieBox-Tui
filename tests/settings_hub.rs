@@ -142,7 +142,7 @@ fn test_settings_player_and_theme_cycling() {
 async fn test_settings_keyboard_navigation_and_actions() {
     let mut app = App::new();
 
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(app.state().show_settings_popup);
     assert_eq!(app.state().settings_category, SettingsCategory::General);
     assert_eq!(app.state().settings_selected_row, 0);
@@ -205,7 +205,7 @@ async fn test_settings_modes_toggle_keeps_popup_open() {
     app.state_mut()
         .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
 
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(app.state().show_settings_popup);
 
     app.handle_action(Action::SelectSettingsCategory(
@@ -244,14 +244,14 @@ async fn test_settings_modes_toggle_keeps_popup_open() {
     app.state_mut().streaming_enabled = true;
     app.state_mut().tv_enabled = true;
     app.state_mut().addons_enabled = true;
-    app.handle_action(Action::CloseSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(!app.state().show_settings_popup);
 }
 
 #[tokio::test]
 async fn test_settings_appearance_theme_cycle_and_popup() {
     let mut app = App::new();
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(app.state().show_settings_popup);
 
     app.handle_action(Action::SelectSettingsCategory(SettingsCategory::Appearance))
@@ -276,14 +276,14 @@ async fn test_settings_appearance_theme_cycle_and_popup() {
     .await;
     assert!(app.state().show_settings_popup);
     assert!(!app.state().show_theme_popup);
-    app.handle_action(Action::CloseSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(!app.state().show_settings_popup);
 }
 
 #[tokio::test]
 async fn test_settings_mouse_interaction() {
     let mut app = App::new();
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(app.state().show_settings_popup);
 
     app.handle_action(Action::MouseClick(0, 0)).await;
@@ -293,7 +293,7 @@ async fn test_settings_mouse_interaction() {
 #[tokio::test]
 async fn test_settings_mouse_tab_and_row_clicks() {
     let mut app = App::new();
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(app.state().show_settings_popup);
     assert_eq!(app.state().settings_category, SettingsCategory::General);
 
@@ -371,7 +371,7 @@ fn test_expand_download_path() {
 #[tokio::test]
 async fn test_settings_hub_clear_cache_activation_and_notification() {
     let mut app = App::new();
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     assert!(app.state().show_settings_popup);
 
     app.handle_action(Action::SelectSettingsCategory(
@@ -407,7 +407,7 @@ async fn test_settings_hub_clear_cache_activation_and_notification() {
 #[tokio::test]
 async fn test_settings_hub_browser_open_row_activation() {
     let mut app = App::new();
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     app.handle_action(Action::SelectSettingsCategory(
         SettingsCategory::StorageInfo,
     ))
@@ -440,7 +440,7 @@ async fn test_settings_hub_clear_watch_history_activation() {
     app.state_mut().history.record_start(&item, 120);
     assert!(!app.state().history.recent.is_empty());
 
-    app.handle_action(Action::ShowSettingsPopup).await;
+    app.handle_action(Action::ToggleSettingsPopup).await;
     app.handle_action(Action::SelectSettingsCategory(
         SettingsCategory::StorageInfo,
     ))
