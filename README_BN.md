@@ -7,7 +7,7 @@
 [ English ](README.md) • [ বাংলা ](README_BN.md) • [ हिन्दी ](README_HI.md) • [ Español ](README_ES.md)
 
 [![Telegram](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@getfromme&style=flat&logo=true)](https://t.me/getfromme)
-
+[![Donate](https://img.shields.io/badge/Donate-Crypto-F7931A?style=flat&logo=bitcoin&logoColor=white)](#optional-support)
 </div>
 
 [moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
@@ -119,7 +119,7 @@ moviebox-tui
 
 কোনো বাগ পেলে বা নতুন ফিচারের আইডিয়া থাকলে নির্দ্বিধায় [GitHub Issues](https://github.com/mesamirh/MovieBox-Tui/issues) এ জানান।
 
-<details>
+<details id="optional-support">
 <summary><b>ডেভেলপমেন্টে সাপোর্ট করুন</b></summary>
 
 প্রজেক্টের নিয়মিত ডেভেলপমেন্টে সাপোর্ট করতে চাইলে:

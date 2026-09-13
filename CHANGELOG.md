@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.19] - 2026-09-13
 
 ### Added
 - **VLC MovieBox DASH and Signed Cookie Streaming Compatibility**:
