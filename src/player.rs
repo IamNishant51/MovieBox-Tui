@@ -77,20 +77,23 @@ pub fn supports_headers(kind: PlayerKind, headers: &[(String, String)]) -> bool 
         PlayerKind::Mpv => true,
         PlayerKind::Iina => true,
         PlayerKind::Vlc => true,
-        PlayerKind::AndroidIntent => headers.iter().all(|(name, _)| {
-            name.eq_ignore_ascii_case("referer") || name.eq_ignore_ascii_case("user-agent")
-        }),
+        PlayerKind::AndroidIntent => true,
     }
 }
 
 pub fn header_capable_players() -> &'static [PlayerKind] {
     #[cfg(target_os = "macos")]
     {
-        &[PlayerKind::Mpv, PlayerKind::Iina, PlayerKind::Vlc]
+        &[
+            PlayerKind::Mpv,
+            PlayerKind::Iina,
+            PlayerKind::Vlc,
+            PlayerKind::AndroidIntent,
+        ]
     }
     #[cfg(not(target_os = "macos"))]
     {
-        &[PlayerKind::Mpv, PlayerKind::Vlc]
+        &[PlayerKind::Mpv, PlayerKind::Vlc, PlayerKind::AndroidIntent]
     }
 }
 
@@ -240,7 +243,14 @@ fn append_android_intent_extras(
 ) {
     if let Some(sub) = subtitle {
         cmd.arg("-e").arg("subtitles_location").arg(sub);
+        cmd.arg("--eu").arg("subtitles_location").arg(sub);
         cmd.arg("-e").arg("subs").arg(sub);
+        cmd.arg("--esal").arg("subs").arg(sub);
+        cmd.arg("-e").arg("subs.enable").arg(sub);
+        cmd.arg("--esal").arg("subs.enable").arg(sub);
+        cmd.arg("-e").arg("sub").arg(sub);
+        cmd.arg("--eu").arg("sub").arg(sub);
+        cmd.arg("-e").arg("title_subtitle").arg(sub);
     }
     for (name, value) in headers {
         if name.eq_ignore_ascii_case("user-agent") {
@@ -1412,9 +1422,9 @@ mod tests {
     }
 
     #[test]
-    fn header_support_rejects_android_cookies_and_allows_vlc_proxy() {
+    fn header_support_allows_android_cookies_and_vlc_proxy() {
         let headers = vec![("Cookie".into(), "session=secret".into())];
-        assert!(!supports_headers(PlayerKind::AndroidIntent, &headers));
+        assert!(supports_headers(PlayerKind::AndroidIntent, &headers));
         assert!(supports_headers(PlayerKind::Vlc, &headers));
         assert!(supports_headers(
             PlayerKind::Vlc,

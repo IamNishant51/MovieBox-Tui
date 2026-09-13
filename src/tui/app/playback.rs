@@ -303,11 +303,13 @@ impl App {
             let mut temporary_subtitle = None;
             if matches!(
                 kind,
-                crate::tui::state::PlayerKind::Vlc | crate::tui::state::PlayerKind::Iina
-            ) && let Some(url) = subtitle
+                crate::tui::state::PlayerKind::Vlc
+                    | crate::tui::state::PlayerKind::Iina
+                    | crate::tui::state::PlayerKind::AndroidIntent
+            ) && let Some(ref url) = subtitle
             {
                 let download_res = crate::service::MovieBoxService::new()
-                    .download_subtitle_file(&url, &headers)
+                    .download_subtitle_file(url, &headers)
                     .await;
                 match download_res {
                     Ok(path) => {
@@ -319,7 +321,7 @@ impl App {
                         log::warn!(
                             "subtitle download failed for {:?} player, playing without subtitles (url was {})",
                             kind,
-                            crate::logging::sanitize_url(&url)
+                            crate::logging::sanitize_url(url)
                         );
                         let _ = sender.send(Action::SetStatus(
                             "External subtitle unavailable; playing stream directly.".to_string(),
@@ -332,31 +334,55 @@ impl App {
                 .as_ref()
                 .map(|(p, s, se, ep)| (p.as_str(), s.as_str(), *se, *ep));
 
-            let needs_proxy = matches!(kind, crate::tui::state::PlayerKind::Vlc)
-                && headers.iter().any(|(name, _)| {
-                    !name.eq_ignore_ascii_case("referer")
-                        && !name.eq_ignore_ascii_case("user-agent")
-                });
+            let needs_proxy = matches!(
+                kind,
+                crate::tui::state::PlayerKind::Vlc | crate::tui::state::PlayerKind::AndroidIntent
+            ) && headers.iter().any(|(name, _)| {
+                !name.eq_ignore_ascii_case("referer") && !name.eq_ignore_ascii_case("user-agent")
+            });
 
-            let effective_link = if needs_proxy {
-                match crate::proxy::spawn_sidecar(&link, &headers) {
-                    Ok(local_url) => local_url,
+            let (effective_link, effective_subtitle) = if needs_proxy {
+                match crate::proxy::spawn_sidecar(&link, &headers, subtitle.as_deref()) {
+                    Ok(local_url) => {
+                        let sub_url =
+                            if matches!(kind, crate::tui::state::PlayerKind::AndroidIntent) {
+                                if let Some(remote_sub) = &subtitle {
+                                    if let Some(authority) = local_url
+                                        .strip_prefix("http://")
+                                        .and_then(|s| s.split('/').next())
+                                    {
+                                        let encoded = percent_encoding::utf8_percent_encode(
+                                            remote_sub,
+                                            percent_encoding::NON_ALPHANUMERIC,
+                                        );
+                                        Some(format!("http://{authority}/sub/{encoded}"))
+                                    } else {
+                                        local_subtitle.clone()
+                                    }
+                                } else {
+                                    local_subtitle.clone()
+                                }
+                            } else {
+                                local_subtitle.clone()
+                            };
+                        (local_url, sub_url)
+                    }
                     Err(err) => {
-                        log::error!("Failed to spawn VLC proxy sidecar: {err}");
+                        log::error!("Failed to spawn stream proxy sidecar: {err}");
                         let _ = sender.send(Action::SetStatus(format!(
-                            "VLC stream initialization failed: {err}"
+                            "Stream proxy initialization failed: {err}"
                         )));
                         return;
                     }
                 }
             } else {
-                link.clone()
+                (link.clone(), local_subtitle.clone())
             };
 
             let mut command = crate::tui::player::command(
                 kind,
                 &effective_link,
-                local_subtitle.as_deref(),
+                effective_subtitle.as_deref(),
                 &headers,
                 window,
                 resume_seconds,
@@ -1004,12 +1030,10 @@ mod tests {
             source_label: "Multi-Res".to_string(),
         };
 
-        app.dispatch_playback_or_notify(source);
-
-        assert!(!app.state.is_resolving_playback);
-        assert!(app.state.pending_playback_source.is_none());
-        assert!(!app.state.player_picker_popup);
-        assert!(!app.state.notifications.is_empty());
+        assert_eq!(
+            app.resolve_playback_player(&source),
+            super::PlaybackResolution::Available(crate::tui::state::PlayerKind::AndroidIntent)
+        );
     }
     #[tokio::test]
     async fn test_explicit_player_incompatible_does_not_launch_alternative() {
@@ -1031,27 +1055,12 @@ mod tests {
         let resolution = app.resolve_playback_player(&source);
         assert_eq!(
             resolution,
-            super::PlaybackResolution::ExplicitPlayerIncompatible {
-                chosen: crate::tui::state::PlayerKind::AndroidIntent,
-                compatible_alternatives: vec![crate::tui::state::PlayerKind::Mpv],
-            }
+            super::PlaybackResolution::Available(crate::tui::state::PlayerKind::AndroidIntent)
         );
 
         app.state.is_resolving_playback = true;
         app.dispatch_playback_or_notify(source);
-
-        assert!(!app.state.is_resolving_playback);
         assert!(app.state.pending_playback_source.is_none());
-        assert!(!app.state.player_picker_popup);
-
-        let notification = app.state.notifications.back().expect("notification posted");
-        assert_eq!(notification.title, "Android Player Incompatible");
-        assert!(
-            notification
-                .message
-                .contains("Android Player lacks header support")
-        );
-        assert!(notification.message.contains("mpv"));
     }
 
     #[tokio::test]
@@ -1134,10 +1143,7 @@ mod tests {
         };
         assert_eq!(
             app.resolve_playback_player(&auth_source),
-            super::PlaybackResolution::ExplicitPlayerIncompatible {
-                chosen: crate::tui::state::PlayerKind::AndroidIntent,
-                compatible_alternatives: vec![],
-            }
+            super::PlaybackResolution::Available(crate::tui::state::PlayerKind::AndroidIntent)
         );
     }
 

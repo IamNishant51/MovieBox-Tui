@@ -4,11 +4,11 @@ Tracked here so future work and issue reports reference the same facts.
 
 ## Latent / by-design
 
-- **`supports_headers` is compatibility policy, not just a parser guard.** Sources that
-  carry authentication headers (e.g. MovieBox CloudFront signed cookies) exercise it for Android intent and VLC playback.
-  Android intent and VLC players support unauthenticated streams (CircleFTP, DhakaFlix, IPTV, direct streams) as well as streams
-  with standard `referer`/`user-agent` headers (4KHDHub). Streams requiring custom cookies or auth tokens trip the compatibility
-  gate and guide the user to mpv. Keep `player.rs::supports_headers` in sync with VLC and Android opener capabilities.
+- **`supports_headers` routes authenticated streams via loopback proxy.** Sources that
+  carry authentication headers (e.g. MovieBox CloudFront signed cookies) automatically
+  route through the local detached HTTP loopback proxy (`src/proxy.rs`) for both VLC and
+  Android Intent playback, streaming video chunks over localhost without requiring player-side
+  cookie support.
 - **BDIX clients use nested `if let Ok` pyramids** in search handling; they work and
   are logged, but are harder to read. Flattening is deferred (behavior-neutral refactor
   with moderate churn).

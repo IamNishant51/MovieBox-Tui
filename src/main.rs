@@ -74,9 +74,10 @@ async fn main() -> std::io::Result<()> {
             .get(pos + 2)
             .cloned()
             .unwrap_or_else(|| "[]".to_string());
+        let sub_url = args.get(pos + 3).cloned().filter(|s| !s.is_empty());
         let headers: Vec<(String, String)> =
             serde_json::from_str(&headers_json).unwrap_or_default();
-        moviebox_tui::proxy::run_sidecar(target_url, headers).await;
+        moviebox_tui::proxy::run_sidecar(target_url, headers, sub_url).await;
         return Ok(());
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {

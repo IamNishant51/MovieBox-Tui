@@ -28,16 +28,21 @@ impl Drop for ConnectionGuard {
     }
 }
 
-pub fn spawn_sidecar(target_url: &str, headers: &[(String, String)]) -> Result<String, String> {
+pub fn spawn_sidecar(
+    target_url: &str,
+    headers: &[(String, String)],
+    subtitle_url: Option<&str>,
+) -> Result<String, String> {
     let exe = std::env::current_exe()
         .ok()
         .or_else(|| std::env::args().next().map(PathBuf::from))
         .ok_or_else(|| "unable to locate current executable".to_string())?;
 
     let headers_json = serde_json::to_string(headers).unwrap_or_else(|_| "[]".to_string());
+    let sub_arg = subtitle_url.unwrap_or("");
 
     let mut cmd = Command::new(exe);
-    cmd.args(["--proxy-for-vlc", target_url, &headers_json]);
+    cmd.args(["--proxy-for-vlc", target_url, &headers_json, sub_arg]);
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::null());
@@ -100,7 +105,11 @@ pub fn spawn_sidecar(target_url: &str, headers: &[(String, String)]) -> Result<S
     Ok(format!("http://127.0.0.1:{port}{proxy_path}"))
 }
 
-pub async fn run_sidecar(target_url: String, headers: Vec<(String, String)>) {
+pub async fn run_sidecar(
+    target_url: String,
+    headers: Vec<(String, String)>,
+    subtitle_url: Option<String>,
+) {
     let client = crate::net::http_client_builder()
         .connect_timeout(Duration::from_secs(15))
         .build()
@@ -163,13 +172,21 @@ pub async fn run_sidecar(target_url: String, headers: Vec<(String, String)>) {
             }
         }
 
+        let sub_opt = subtitle_url.clone();
         tokio::spawn(async move {
             let _guard = ConnectionGuard {
                 conns: active_conns,
                 activity,
             };
-            let _ =
-                handle_connection(stream, port, &client, &headers, target_host.as_deref()).await;
+            let _ = handle_connection(
+                stream,
+                port,
+                &client,
+                &headers,
+                target_host.as_deref(),
+                sub_opt.as_deref(),
+            )
+            .await;
         });
     }
 }
@@ -192,6 +209,7 @@ async fn handle_connection(
     client: &reqwest::Client,
     auth_headers: &[(String, String)],
     target_host: Option<&str>,
+    subtitle_url: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -312,7 +330,7 @@ async fn handle_connection(
             return Ok(());
         }
         let manifest_str = String::from_utf8_lossy(&manifest_bytes);
-        let rewritten = rewrite_dash_manifest(&manifest_str, proxy_port, target_host);
+        let rewritten = rewrite_dash_manifest(&manifest_str, proxy_port, target_host, subtitle_url);
         let rewritten_bytes = rewritten.as_bytes();
 
         let headers_out = format!(
@@ -338,6 +356,16 @@ async fn handle_connection(
                     .await?;
             }
         }
+        writer
+            .write_all(b"Access-Control-Allow-Origin: *\r\n")
+            .await?;
+        if target_url.ends_with(".srt") {
+            writer
+                .write_all(b"Content-Type: application/x-subrip\r\n")
+                .await?;
+        } else if target_url.ends_with(".vtt") {
+            writer.write_all(b"Content-Type: text/vtt\r\n").await?;
+        }
     }
     writer.write_all(b"Connection: close\r\n\r\n").await?;
 
@@ -359,6 +387,11 @@ async fn handle_connection(
 
 fn extract_target_url(path_and_query: &str) -> Option<String> {
     let raw = path_and_query.strip_prefix('/')?;
+    if let Some(rest) = raw.strip_prefix("sub/") {
+        if let Ok(decoded) = percent_encoding::percent_decode_str(rest).decode_utf8() {
+            return Some(decoded.into_owned());
+        }
+    }
     if let Some(rest) = raw.strip_prefix("https/") {
         Some(format!("https://{rest}"))
     } else if let Some(rest) = raw.strip_prefix("http/") {
@@ -382,7 +415,12 @@ fn extract_target_url(path_and_query: &str) -> Option<String> {
     }
 }
 
-fn rewrite_dash_manifest(manifest: &str, proxy_port: u16, target_host: Option<&str>) -> String {
+fn rewrite_dash_manifest(
+    manifest: &str,
+    proxy_port: u16,
+    target_host: Option<&str>,
+    subtitle_url: Option<&str>,
+) -> String {
     let Some(host) = target_host else {
         return manifest.to_string();
     };
@@ -393,9 +431,31 @@ fn rewrite_dash_manifest(manifest: &str, proxy_port: u16, target_host: Option<&s
     let proxy_https = format!("http://127.0.0.1:{proxy_port}/https/{host}/");
     let proxy_http = format!("http://127.0.0.1:{proxy_port}/http/{host}/");
 
-    manifest
+    let mut rewritten = manifest
         .replace(&https_prefix, &proxy_https)
-        .replace(&http_prefix, &proxy_http)
+        .replace(&http_prefix, &proxy_http);
+
+    if let Some(sub) = subtitle_url {
+        if !sub.is_empty() {
+            let encoded_sub =
+                percent_encoding::utf8_percent_encode(sub, percent_encoding::NON_ALPHANUMERIC);
+            let sub_proxy_url = format!("http://127.0.0.1:{proxy_port}/sub/{encoded_sub}");
+            let sub_adaptation_set = format!(
+                r#"<AdaptationSet contentType="text" mimeType="text/vtt" lang="en">
+    <Role schemeIdUri="urn:mpeg:dash:role:2011" value="subtitle"/>
+    <Representation id="sub_en" bandwidth="1000">
+      <BaseURL>{sub_proxy_url}</BaseURL>
+    </Representation>
+  </AdaptationSet>
+</Period>"#
+            );
+            if rewritten.contains("</Period>") {
+                rewritten = rewritten.replacen("</Period>", &sub_adaptation_set, 1);
+            }
+        }
+    }
+
+    rewritten
 }
 
 #[cfg(test)]
@@ -449,7 +509,7 @@ mod tests {
 </Period>
 </MPD>"#;
 
-        let rewritten = rewrite_dash_manifest(manifest, 8888, Some("sacdn.example.com"));
+        let rewritten = rewrite_dash_manifest(manifest, 8888, Some("sacdn.example.com"), None);
 
         assert!(
             rewritten.contains("https://standards.iso.org/schema.xsd"),
@@ -475,7 +535,7 @@ mod tests {
     #[test]
     fn test_rewrite_dash_manifest_with_explicit_port() {
         let manifest = r#"<MPD><Period><BaseURL>https://cdn.example.com:8080/dash/seg.mp4</BaseURL></Period></MPD>"#;
-        let rewritten = rewrite_dash_manifest(manifest, 9999, Some("cdn.example.com:8080"));
+        let rewritten = rewrite_dash_manifest(manifest, 9999, Some("cdn.example.com:8080"), None);
         assert!(
             rewritten.contains("http://127.0.0.1:9999/https/cdn.example.com:8080/dash/seg.mp4"),
             "Port must be preserved in proxy route"
