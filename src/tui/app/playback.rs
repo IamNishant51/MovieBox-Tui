@@ -330,9 +330,30 @@ impl App {
                 .as_ref()
                 .map(|(p, s, se, ep)| (p.as_str(), s.as_str(), *se, *ep));
 
+            let needs_proxy = matches!(kind, crate::tui::state::PlayerKind::Vlc)
+                && headers.iter().any(|(name, _)| {
+                    !name.eq_ignore_ascii_case("referer")
+                        && !name.eq_ignore_ascii_case("user-agent")
+                });
+
+            let effective_link = if needs_proxy {
+                match crate::proxy::spawn_sidecar(&link, &headers) {
+                    Ok(local_url) => local_url,
+                    Err(err) => {
+                        log::error!("Failed to spawn VLC proxy sidecar: {err}");
+                        let _ = sender.send(Action::SetStatus(format!(
+                            "VLC stream initialization failed: {err}"
+                        )));
+                        return;
+                    }
+                }
+            } else {
+                link.clone()
+            };
+
             let mut command = crate::tui::player::command(
                 kind,
-                &link,
+                &effective_link,
                 local_subtitle.as_deref(),
                 &headers,
                 window,
@@ -677,7 +698,17 @@ impl App {
                     if let Some(source) = self.state.pending_playback_source.take() {
                         self.dispatch_playback_or_notify(source);
                     } else {
-                        self.action_sender.send(Action::LaunchMpv(link, None)).ok();
+                        let source = crate::providers::models::PlaybackSource {
+                            provider: self.state.active_provider,
+                            url: link,
+                            headers: vec![(
+                                "User-Agent".to_string(),
+                                self.service.client.user_agent().to_string(),
+                            )],
+                            subtitle: None,
+                            source_label: "Direct".to_string(),
+                        };
+                        self.dispatch_playback_or_notify(source);
                     }
                 }
             }
@@ -695,43 +726,6 @@ impl App {
                     self.state.subtitle_list_state.select(Some(0));
                 } else {
                     self.action_sender.send(Action::DownloadStream(None)).ok();
-                }
-            }
-            Action::LaunchMpv(link, subtitle_url) => {
-                if self.state.is_playing {
-                    self.state.notify(
-                        NotificationKind::Warning,
-                        "Playback active",
-                        "Player is already running.",
-                    );
-                    return None;
-                }
-                if self.state.last_playback_launch.elapsed().as_millis() < 500 {
-                    return None;
-                }
-                self.state.last_playback_launch = std::time::Instant::now();
-                self.state.is_resolving_playback = false;
-                let player = self.state.available_players.first().cloned();
-                match player {
-                    None => {
-                        let message = if crate::updater::artifact::is_termux_environment() {
-                            "Install player intent tools: 'pkg install -y termux-tools termux-am' and ensure an Android player (VLC, MX Player, or Just Player) is installed."
-                        } else {
-                            "Install mpv, IINA, or VLC to enable playback."
-                        };
-                        self.state
-                            .notify(NotificationKind::Error, "Player Unavailable", message);
-                    }
-                    Some(kind) => {
-                        self.state.notify(
-                            NotificationKind::Info,
-                            "Opening Player",
-                            format!("Launching {}.", kind.label()),
-                        );
-                        self.action_sender
-                            .send(Action::LaunchPlayer(kind, link, subtitle_url))
-                            .ok();
-                    }
                 }
             }
 
@@ -998,7 +992,7 @@ mod tests {
     async fn test_playback_resolving_lock_resets_on_incompatible_player() {
         let mut app = crate::tui::app::App::new();
         app.state.is_resolving_playback = true;
-        app.state.available_players = vec![crate::tui::state::PlayerKind::Vlc];
+        app.state.available_players = vec![crate::tui::state::PlayerKind::AndroidIntent];
 
         let source = crate::providers::models::PlaybackSource {
             provider: crate::providers::models::ProviderKind::MovieBox,
@@ -1020,6 +1014,49 @@ mod tests {
         let mut app = crate::tui::app::App::new();
         app.state.available_players = vec![
             crate::tui::state::PlayerKind::Mpv,
+            crate::tui::state::PlayerKind::AndroidIntent,
+        ];
+        app.state.default_player = Some("android".to_string());
+
+        let source = crate::providers::models::PlaybackSource {
+            provider: crate::providers::models::ProviderKind::MovieBox,
+            url: "https://example.com/index.mpd".to_string(),
+            headers: vec![("Cookie".to_string(), "CloudFront-Policy=test".to_string())],
+            subtitle: None,
+            source_label: "Multi-Res".to_string(),
+        };
+
+        let resolution = app.resolve_playback_player(&source);
+        assert_eq!(
+            resolution,
+            super::PlaybackResolution::ExplicitPlayerIncompatible {
+                chosen: crate::tui::state::PlayerKind::AndroidIntent,
+                compatible_alternatives: vec![crate::tui::state::PlayerKind::Mpv],
+            }
+        );
+
+        app.state.is_resolving_playback = true;
+        app.dispatch_playback_or_notify(source);
+
+        assert!(!app.state.is_resolving_playback);
+        assert!(app.state.pending_playback_source.is_none());
+        assert!(!app.state.player_picker_popup);
+
+        let notification = app.state.notifications.back().expect("notification posted");
+        assert_eq!(notification.title, "Android Player Incompatible");
+        assert!(
+            notification
+                .message
+                .contains("Android Player lacks header support")
+        );
+        assert!(notification.message.contains("mpv"));
+    }
+
+    #[tokio::test]
+    async fn test_vlc_resolves_as_available_for_cookie_source() {
+        let mut app = crate::tui::app::App::new();
+        app.state.available_players = vec![
+            crate::tui::state::PlayerKind::Mpv,
             crate::tui::state::PlayerKind::Vlc,
         ];
         app.state.default_player = Some("vlc".to_string());
@@ -1035,23 +1072,8 @@ mod tests {
         let resolution = app.resolve_playback_player(&source);
         assert_eq!(
             resolution,
-            super::PlaybackResolution::ExplicitPlayerIncompatible {
-                chosen: crate::tui::state::PlayerKind::Vlc,
-                compatible_alternatives: vec![crate::tui::state::PlayerKind::Mpv],
-            }
+            super::PlaybackResolution::Available(crate::tui::state::PlayerKind::Vlc)
         );
-
-        app.state.is_resolving_playback = true;
-        app.dispatch_playback_or_notify(source);
-
-        assert!(!app.state.is_resolving_playback);
-        assert!(app.state.pending_playback_source.is_none());
-        assert!(!app.state.player_picker_popup);
-
-        let notification = app.state.notifications.back().expect("notification posted");
-        assert_eq!(notification.title, "VLC Incompatible");
-        assert!(notification.message.contains("VLC lacks header support"));
-        assert!(notification.message.contains("mpv"));
     }
     #[tokio::test]
     async fn test_playback_resolving_lock_resets_on_player_crash() {

@@ -76,7 +76,8 @@ pub fn supports_headers(kind: PlayerKind, headers: &[(String, String)]) -> bool 
     match kind {
         PlayerKind::Mpv => true,
         PlayerKind::Iina => true,
-        PlayerKind::Vlc | PlayerKind::AndroidIntent => headers.iter().all(|(name, _)| {
+        PlayerKind::Vlc => true,
+        PlayerKind::AndroidIntent => headers.iter().all(|(name, _)| {
             name.eq_ignore_ascii_case("referer") || name.eq_ignore_ascii_case("user-agent")
         }),
     }
@@ -85,11 +86,11 @@ pub fn supports_headers(kind: PlayerKind, headers: &[(String, String)]) -> bool 
 pub fn header_capable_players() -> &'static [PlayerKind] {
     #[cfg(target_os = "macos")]
     {
-        &[PlayerKind::Mpv, PlayerKind::Iina]
+        &[PlayerKind::Mpv, PlayerKind::Iina, PlayerKind::Vlc]
     }
     #[cfg(not(target_os = "macos"))]
     {
-        &[PlayerKind::Mpv]
+        &[PlayerKind::Mpv, PlayerKind::Vlc]
     }
 }
 
@@ -157,6 +158,10 @@ fn probe_android_opener() -> Option<AndroidOpener> {
     let is_termux = crate::updater::artifact::is_termux_environment();
 
     if let Ok(prefix) = std::env::var("PREFIX") {
+        let termux_am = format!("{prefix}/bin/termux-am");
+        if Path::new(&termux_am).is_file() {
+            return Some(AndroidOpener::TermuxAm(termux_am));
+        }
         let termux_open = format!("{prefix}/bin/termux-open");
         if Path::new(&termux_open).is_file() {
             return Some(AndroidOpener::TermuxOpen(termux_open));
@@ -165,12 +170,12 @@ fn probe_android_opener() -> Option<AndroidOpener> {
         if Path::new(&termux_open_url).is_file() {
             return Some(AndroidOpener::TermuxOpenUrl(termux_open_url));
         }
-        let termux_am = format!("{prefix}/bin/termux-am");
-        if Path::new(&termux_am).is_file() {
-            return Some(AndroidOpener::TermuxAm(termux_am));
-        }
     }
 
+    let termux_am_static = "/data/data/com.termux/files/usr/bin/termux-am";
+    if Path::new(termux_am_static).is_file() {
+        return Some(AndroidOpener::TermuxAm(termux_am_static.to_string()));
+    }
     let termux_open_static = "/data/data/com.termux/files/usr/bin/termux-open";
     if Path::new(termux_open_static).is_file() {
         return Some(AndroidOpener::TermuxOpen(termux_open_static.to_string()));
@@ -181,27 +186,29 @@ fn probe_android_opener() -> Option<AndroidOpener> {
             termux_open_url_static.to_string(),
         ));
     }
-    let termux_am_static = "/data/data/com.termux/files/usr/bin/termux-am";
-    if Path::new(termux_am_static).is_file() {
-        return Some(AndroidOpener::TermuxAm(termux_am_static.to_string()));
-    }
 
+    if let Some(path) = find_in_path("termux-am") {
+        return Some(AndroidOpener::TermuxAm(path));
+    }
     if let Some(path) = find_in_path("termux-open") {
         return Some(AndroidOpener::TermuxOpen(path));
     }
     if let Some(path) = find_in_path("termux-open-url") {
         return Some(AndroidOpener::TermuxOpenUrl(path));
     }
-    if let Some(path) = find_in_path("termux-am") {
-        return Some(AndroidOpener::TermuxAm(path));
-    }
-
     if !is_termux {
-        if Path::new("/system/bin/am").is_file() {
-            return Some(AndroidOpener::SystemAm("/system/bin/am".to_string()));
-        }
-        if let Some(path) = find_in_path("am") {
-            return Some(AndroidOpener::SystemAm(path));
+        #[cfg(target_os = "android")]
+        let is_root = unsafe { libc::getuid() == 0 };
+        #[cfg(not(target_os = "android"))]
+        let is_root = true;
+
+        if is_root {
+            if Path::new("/system/bin/am").is_file() {
+                return Some(AndroidOpener::SystemAm("/system/bin/am".to_string()));
+            }
+            if let Some(path) = find_in_path("am") {
+                return Some(AndroidOpener::SystemAm(path));
+            }
         }
     }
 
@@ -1405,10 +1412,10 @@ mod tests {
     }
 
     #[test]
-    fn header_support_rejects_android_and_unsupported_vlc_headers() {
+    fn header_support_rejects_android_cookies_and_allows_vlc_proxy() {
         let headers = vec![("Cookie".into(), "session=secret".into())];
         assert!(!supports_headers(PlayerKind::AndroidIntent, &headers));
-        assert!(!supports_headers(PlayerKind::Vlc, &headers));
+        assert!(supports_headers(PlayerKind::Vlc, &headers));
         assert!(supports_headers(
             PlayerKind::Vlc,
             &[("referer".into(), "https://example.test/".into())]

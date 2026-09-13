@@ -68,6 +68,17 @@ impl Drop for TerminalGuard {
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    if let Some(pos) = args.iter().position(|a| a == "--proxy-for-vlc") {
+        let target_url = args.get(pos + 1).cloned().unwrap_or_default();
+        let headers_json = args
+            .get(pos + 2)
+            .cloned()
+            .unwrap_or_else(|| "[]".to_string());
+        let headers: Vec<(String, String)> =
+            serde_json::from_str(&headers_json).unwrap_or_default();
+        moviebox_tui::proxy::run_sidecar(target_url, headers).await;
+        return Ok(());
+    }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!("moviebox-tui {}", env!("CARGO_PKG_VERSION"));
         println!("A terminal client for finding and streaming movies, TV shows, and anime.\n");
