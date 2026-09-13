@@ -1,31 +1,35 @@
 # Introduction
 
-A fast, lightweight terminal client for streaming and downloading movies, TV shows, anime, and live TV — powered by your local media player.
+Terminal interface to find, download, and stream movies, TV shows, and live TV using local media players.
+
+[![Telegram](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@getfromme&style=flat&logo=true)](https://t.me/getfromme)
 
 [moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
 
-MovieBox-TUI replaces ad-heavy streaming websites and clunky browser players with a clean, keyboard-driven terminal interface. It scrapes stream links directly from multiple sources and launches playback in your native media player with hardware acceleration, audio track switching, and automatic subtitle synchronization.
-
 ## Features
 
-- **Multi-Source Streaming**: Search and stream titles across MovieBox, 4KHDHub, BDIX mirrors, custom IPTV playlists, and community Stremio HTTP addons. Press `Ctrl+P` on the Details screen to switch providers in-place.
-- **Hardware-Accelerated Playback**: Direct playback in `mpv`, `IINA` (macOS), or `VLC` with stream authentication headers forwarded automatically.
-- **Automatic Subtitles**: Automatically searches, downloads, and syncs subtitles in your preferred language directly into your player.
-- **Season Batch Downloads**: Download individual episodes or entire seasons with one keypress (`d`), with HTTP range resume support and clean folder structure (`Movies/` and `Series/`).
-- **Interactive Settings Hub**: Configure your default media player, download folder, content modes, and themes inside an in-app visual modal via `/settings` (`Ctrl+S`).
-- **Modes**: Switch between Streaming and Live TV (`Ctrl+T`), with community Stremio addons available directly as a streaming provider.
-- **Ergonomics & Themes**: Full keyboard navigation (vim-style `j`/`k`, `/`, `Tab`) and mouse support (click, scroll, drag) with 6 built-in themes (Catppuccin, TokyoNight, Nord, Dracula, Gruvbox, Rosé Pine) and terminal theme autodetection.
+- **On Demand Streaming**: Stream movies, series, and anime across multiple providers and community Stremio addons.
+- **Live TV and IPTV**: Import custom M3U playlist URLs to search channels, browse categories, and stream live television.
+- **Native Video Playback**: Plays directly in your favorite player (`mpv`, `IINA`, `VLC`, or Android video players) with smooth hardware acceleration.
+- **Automatic Subtitles**: Automatically searches and loads subtitles in your preferred language into your player.
+- **Fast Downloads**: Save single episodes or entire seasons to your computer with pause and resume support.
+- **Visual Posters**: Displays cover art and movie posters directly inside your terminal window.
+- **Library and History**: Bookmark your favorite titles and pick up watching right where you left off.
+- **Custom Themes**: Built in color themes and settings to match your personal terminal look and feel.
+- **Cross Platform**: Works identically on macOS, Linux, Windows, and Android.
 
 ## Prerequisites
 
-MovieBox-TUI delegates video decoding to an external media player. Install at least one of the following:
+Requires at least one media player for streaming:
 
-| Player | Platform | Quick Install |
-| :--- | :--- | :--- |
-| **mpv** *(Recommended)* | Linux, macOS, Windows | `brew install mpv` / `sudo apt install mpv` / `winget install mpv` |
-| **IINA** | macOS (Native GUI) | `brew install --cask iina` |
-| **VLC** | Cross-platform | `brew install --cask vlc` / `sudo apt install vlc` / `winget install VideoLAN.VLC` |
-| **Android Player** | Android (Termux) | `pkg install -y termux-tools termux-am` *(launches external player)* |
+- **mpv** (recommended across Linux, macOS, and Windows)
+- **IINA** (macOS)
+- **VLC** (cross platform)
+- **Any Android Video Player** via Termux (VLC, Just Player, MX Player)
+
+*Poster graphics:* Image rendering requires a graphics capable terminal (Ghostty, Kitty, WezTerm, or iTerm2). Standard terminals display clean text layouts automatically.
+
+*Optional for MovieBox downloads:* `yt-dlp` and `ffmpeg` are required only for downloading DASH streams from the MovieBox provider. All other providers download directly with the built in engine.
 
 ---
 

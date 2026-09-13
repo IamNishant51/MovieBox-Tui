@@ -48,6 +48,10 @@ src/
     tracker.rs       Injected Lua tracker script (`moviebox_tracker.lua`) and
                      periodic 5-second playback state auto-saving.
 
+  proxy.rs           Detached loopback HTTP proxy: handles signed CloudFront cookie
+                     streams for VLC and Android Intent playback, rewrites DASH manifests,
+                     and serves streams and subtitles over localhost.
+
   providers/
     mod.rs           Module declarations.
     models.rs        Shared typed models (ProviderKind, CatalogItem, MediaDetails,

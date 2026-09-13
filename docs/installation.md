@@ -4,17 +4,15 @@ MovieBox-TUI is available across macOS, Linux, Windows, and Android (Termux).
 
 ---
 
-## macOS & Linux
+## macOS and Linux
 
-Install via the automated script:
+Automated install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
 ```
 
-> **Raspberry Pi & Linux ARM64**: Prebuilt Linux ARM64 binaries (`MovieBox_Linux_arm64.tar.gz`) are statically linked musl executables with 64KB page alignment, supporting Raspberry Pi 4B (4KB pages), Raspberry Pi 5 (16KB pages), and ARM cloud servers. Prebuilt binaries require a 64-bit userland (`aarch64`). On 32-bit Raspberry Pi OS (`armhf`), install via Cargo (`cargo install moviebox-tui --locked`).
-
-### macOS via Homebrew
+Homebrew (macOS):
 
 ```bash
 brew tap mesamirh/moviebox-tui https://github.com/mesamirh/MovieBox-Tui
@@ -26,7 +24,7 @@ brew install moviebox-tui
 
 ## Windows
 
-Install via PowerShell (run in Windows Terminal or PowerShell 5.1+):
+Install via PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.ps1 | iex
@@ -36,23 +34,12 @@ irm https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.ps1 | i
 
 ## Android (Termux)
 
-Install Termux tools and the intent bridge, run the installer script to fetch the precompiled native Android ARM64 binary, and grant storage permissions:
+Termux:
 
 ```bash
 pkg update && pkg install -y curl tar termux-tools termux-am
-curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh -o install.sh && bash install.sh
+curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
 termux-setup-storage
-```
-
-The installer automatically downloads the native Android ARM64 release package (`MovieBox_Android_arm64.tar.gz`) built against the Android NDK and Bionic libc, requiring zero on-device compilation.
-
-> **Media Player Requirements**: Android streams are rendered through external Android video players (such as **VLC for Android**, **MX Player**, **Just Player**, or **MPV Android APK**) triggered via `termux-open` or `termux-am`. Command-line `mpv` installed directly in Termux (`pkg install mpv`) runs without a video output surface unless an X11 desktop environment (like Termux:X11) is configured.
-
-To compile from source on Termux:
-
-```bash
-pkg install -y rust clang
-cargo install moviebox-tui --locked
 ```
 
 ---

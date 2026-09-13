@@ -1,9 +1,7 @@
 # Cross-platform
 
-Build targets: macOS, Linux, Windows, and Android (Termux via the Linux ARM64
-binary). The codebase uses
-`crossterm` (all platforms), `ratatui`, and a couple of small per-OS branches.
-
+Build targets: macOS, Linux, Windows, and Android (Termux). The codebase uses
+`crossterm`, `ratatui`, and focused platform integrations.
 "Build target" does not mean every runtime integration is verified on every
 device. Desktop builds are covered by CI; external players and Termux require
 the release checks in [`release-checklist.md`](release-checklist.md).
@@ -14,7 +12,7 @@ the release checks in [`release-checklist.md`](release-checklist.md).
 | :--- | :--- |
 | macOS            | IINA preferred player (via the installed IINA `iina-cli`); VLC/mpv `.app` paths detected. `process_group(0)` on spawn.                                                                                                                                                                                |
 | Windows          | mpv/VLC detected via Program Files + `%LOCALAPPDATA%`; path-safe file stems; static MSVC CRT linking (`+crt-static`) for zero-dependency standalone binaries; handle-safe atomic download replacement (dropping file handles before renames); background process spawning (registry queries, yt-dlp downloader, and update helper) hardened with canonical `CREATE_NO_WINDOW` (`0x08000000`). |
-| Linux            | Flatpak mpv/VLC supported (`flatpak run …`); xdg data/cache dirs. Linux ARM64 binaries (`MovieBox_Linux_arm64.tar.gz`) are fully static musl executables linked with 64KB ELF segment alignment (`-Wl,-z,max-page-size=65536`) for seamless compatibility across 4KB kernels (Raspberry Pi 4B), 16KB kernels (Raspberry Pi 5 / BCM2712), and 64KB kernels (AWS Graviton, RHEL/Fedora ARM). |
+| Linux            | Flatpak mpv/VLC supported (`flatpak run …`); xdg data/cache dirs. Linux ARM64 binaries (`MovieBox_Linux_arm64.tar.gz`) are fully static musl executables linked with 64KB ELF segment alignment (`-Wl,-z,max-page-size=65536`) for compatibility across 4KB, 16KB, and 64KB page kernels. |
 | Android (Termux) | Targets `aarch64-linux-android` linked against the Android NDK (Clang API 24+) and system Bionic `libc.so`, producing a native ELF executable with a valid `PT_PHDR` program header table and `/system/bin/linker64` dynamic loader. This eliminates `Could not find a PHDR: broken executable?` crashes and executes natively without on-device compilation. Includes a pure-Rust DNS resolver that reads system configuration and falls back to public resolvers (Cloudflare, Google, Quad9) for zero-config name resolution. Android playback delegates to external video players (VLC for Android, Just Player, MX Player, MPV Android) via Termux intent dispatchers (`termux-open`, `termux-open-url`, `termux-am`), requiring `pkg install -y termux-tools termux-am`. To protect against Android 10+ SELinux execute restrictions (exit code 126), system `/system/bin/am` fallbacks are strictly avoided in Termux; `LD_PRELOAD` is preserved for Termux applets while `PATH` is sanitized for system calls. Android intent playback supports unauthenticated streams (CircleFTP, DhakaFlix, IPTV) and standard CDN streams (4KHDHub). Real-device chooser behavior is a release prerequisite. |
 
 ## Terminal capabilities

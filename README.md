@@ -1,44 +1,46 @@
 # MovieBox-TUI
 
-A fast, lightweight terminal client for streaming and downloading movies, TV shows, anime, and live TV — powered by your local media player.
+Terminal interface to find, download, and stream movies, TV shows, and live TV using local media players.
+
+[![Telegram](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@getfromme&style=flat&logo=true)](https://t.me/getfromme)
 
 [moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
 
-MovieBox-TUI replaces ad-heavy streaming websites and clunky browser players with a clean, keyboard-driven terminal interface. It scrapes stream links directly from multiple sources and launches playback in your native media player with hardware acceleration, audio track switching, and automatic subtitle synchronization.
-
 ## Features
 
-- **Multi-Source Streaming**: Search and stream titles across MovieBox, 4KHDHub, BDIX mirrors, custom IPTV playlists, and community Stremio HTTP addons. Press `Ctrl+P` on the Details screen to switch providers in-place.
-- **Hardware-Accelerated Playback**: Direct playback in `mpv`, `IINA` (macOS), or `VLC` with stream authentication headers forwarded automatically.
-- **Automatic Subtitles**: Automatically searches, downloads, and syncs subtitles in your preferred language directly into your player.
-- **Season Batch Downloads**: Download individual episodes or entire seasons with one keypress (`d`), with HTTP range resume support and clean folder structure (`Movies/` and `Series/`).
-- **Interactive Settings Hub**: Configure your default media player, download folder, content modes, and themes inside an in-app visual modal via `/settings` (`Ctrl+S`).
-- **Modes**: Switch between Streaming and Live TV (`Ctrl+T`), with community Stremio addons available directly as a streaming provider.
-- **Ergonomics & Themes**: Full keyboard navigation (vim-style `j`/`k`, `/`, `Tab`) and mouse support (click, scroll, drag) with 6 built-in themes (Catppuccin, TokyoNight, Nord, Dracula, Gruvbox, Rosé Pine) and terminal theme autodetection.
+- **On Demand Streaming**: Stream movies, series, and anime across multiple providers and community Stremio addons.
+- **Live TV and IPTV**: Import custom M3U playlist URLs to search channels, browse categories, and stream live television.
+- **Native Video Playback**: Plays directly in your favorite player (`mpv`, `IINA`, `VLC`, or Android video players) with smooth hardware acceleration.
+- **Automatic Subtitles**: Automatically searches and loads subtitles in your preferred language into your player.
+- **Fast Downloads**: Save single episodes or entire seasons to your computer with pause and resume support.
+- **Visual Posters**: Displays cover art and movie posters directly inside your terminal window.
+- **Library and History**: Bookmark your favorite titles and pick up watching right where you left off.
+- **Custom Themes**: Built in color themes and settings to match your personal terminal look and feel.
+- **Cross Platform**: Works identically on macOS, Linux, Windows, and Android.
 
 ## Prerequisites
 
-MovieBox-TUI delegates video decoding to an external media player. Install at least one of the following:
+Requires at least one media player for streaming:
 
-| Player | Platform | Quick Install |
-| :--- | :--- | :--- |
-| **mpv** *(Recommended)* | Linux, macOS, Windows | `brew install mpv` / `sudo apt install mpv` / `winget install mpv` |
-| **IINA** | macOS (Native GUI) | `brew install --cask iina` |
-| **VLC** | Cross-platform | `brew install --cask vlc` / `sudo apt install vlc` / `winget install VideoLAN.VLC` |
-| **Android Player** | Android (Termux) | `pkg install -y termux-tools termux-am` *(launches external player)* |
+- **mpv** (recommended across Linux, macOS, and Windows)
+- **IINA** (macOS)
+- **VLC** (cross platform)
+- **Any Android Video Player** via Termux (VLC, Just Player, MX Player)
+
+*Poster graphics:* Image rendering requires a graphics capable terminal (Ghostty, Kitty, WezTerm, or iTerm2). Standard terminals display clean text layouts automatically.
+
+*Optional for MovieBox downloads:* `yt-dlp` and `ffmpeg` are required only for downloading DASH streams from the MovieBox provider. All other providers download directly with the built in engine.
 
 ## Installation
 
-### macOS & Linux
+### macOS and Linux
 
-Install via the automated script:
+Automated install:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
 ```
 
-> **Raspberry Pi & Linux ARM64**: Prebuilt Linux ARM64 binaries (`MovieBox_Linux_arm64.tar.gz`) are statically linked musl executables with 64KB page alignment, supporting Raspberry Pi 4B (4KB pages), Raspberry Pi 5 (16KB pages), and ARM cloud servers. Prebuilt binaries require a 64-bit userland (`aarch64`). On 32-bit Raspberry Pi OS (`armhf`), install via Cargo (`cargo install moviebox-tui --locked`).
-
-*macOS users can also install via Homebrew:*
+Homebrew (macOS):
 ```bash
 brew tap mesamirh/moviebox-tui https://github.com/mesamirh/MovieBox-Tui
 brew trust mesamirh/moviebox-tui
@@ -47,31 +49,29 @@ brew install moviebox-tui
 
 ### Windows
 
-Install via PowerShell:
+PowerShell:
 ```powershell
 irm https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.ps1 | iex
 ```
 
 ### Android (Termux)
 
-Install Termux tools and the intent bridge, download the native precompiled Android ARM64 binary via the installer, and grant storage permissions:
+Termux:
 ```bash
 pkg update && pkg install -y curl tar termux-tools termux-am
-curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh -o install.sh && bash install.sh
+curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
 termux-setup-storage
 ```
 
-> **Video Playback on Android**: Playback on Android is handled by external video player apps (**VLC**, **MX Player**, **Just Player**, or **MPV Android APK**) launched via Android Intent. Installing CLI `mpv` inside Termux (`pkg install mpv`) provides terminal/audio-only output because Android does not expose a desktop video surface to terminal sessions.
-
 <details>
-<summary><b>Manual & Developer Builds (Cargo)</b></summary>
+<summary><b>Cargo and Source Build</b></summary>
 
-Install directly from crates.io:
+From crates.io:
 ```bash
 cargo install moviebox-tui --locked
 ```
 
-Or compile from source:
+From source:
 ```bash
 git clone https://github.com/mesamirh/MovieBox-Tui.git
 cd MovieBox-Tui
@@ -92,34 +92,22 @@ gh attestation verify <archive-file> -R mesamirh/MovieBox-Tui
 
 ## Quick Start
 
-Launch the application:
 ```bash
 moviebox-tui
 ```
 
-- **Interactive Help**: Press `?` inside the app anytime to view the mode-aware keyboard shortcuts and mouse guide.
-- **Settings**: Type `/settings` or press `Ctrl+S` to configure your default player, download directory, and content modes.
-- **Controls Reference**: See [`docs/controls.md`](docs/controls.md) for the complete list of keybindings, mouse actions, and slash commands.
+- Type any title to search, press `Enter` to play.
+- Press `?` anytime for shortcuts, or type `/settings` for preferences.
 
 ## Documentation
 
-Comprehensive guides are available online at [**mesamirh.github.io/MovieBox-Tui**](https://mesamirh.github.io/MovieBox-Tui/) or locally in the [`docs/`](docs/) directory:
-
-- [Controls & Shortcuts](docs/controls.md) — Complete keybindings, navigation, and slash commands
-- [Media Players](docs/players.md) — Player options, custom paths, and launch flags
-- [Downloads & Organization](docs/downloads.md) — Multi-segment download engine and folder layout
-- [Live TV](docs/tv-mode.md) — Adding and managing custom M3U playlists
-- [Addon Mode](docs/addons-mode.md) — Installing and managing Stremio HTTP addons
-- [Configuration](docs/config.md) — `config.json` reference and `MOVIEBOX_*` environment variables
-- [Providers](docs/providers.md) — Supported content sources and resolver protocols
-- [Architecture](docs/architecture.md) — Subsystem map, event loop, and caching model
-- [Documentation Index](docs/README.md) — Full documentation directory
+Comprehensive guides and architectural references are available at [**mesamirh.github.io/MovieBox-Tui**](https://mesamirh.github.io/MovieBox-Tui/) or in the [`docs/`](docs/) directory.
 
 ## Contributing
 
-Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
+Contributions are welcome. Review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
 
-If you encounter a bug or have a feature request, feel free to open an [issue](https://github.com/mesamirh/MovieBox-Tui/issues).
+Report bugs or submit feature requests through [GitHub Issues](https://github.com/mesamirh/MovieBox-Tui/issues).
 
 <details>
 <summary><b>Optional Support</b></summary>
@@ -134,6 +122,10 @@ If you would like to support ongoing development directly:
 | **Solana (SOL)** | `6ctm5WFv73MNywoCKAz3xK72yizSspHa72rFNygooU6` |
 
 </details>
+
+## Privacy
+
+MovieBox-TUI contains zero telemetry, analytics, or user tracking. All search history, bookmarks, and configuration files remain strictly on your local filesystem.
 
 ## License
 
