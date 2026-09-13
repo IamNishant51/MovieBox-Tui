@@ -10,7 +10,7 @@
 [![Donate](https://img.shields.io/badge/Donate-Crypto-F7931A?style=flat&logo=bitcoin&logoColor=white)](../README.md#optional-support)
 </div>
 
-[moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
+[moviebox-tui-walkthrough.webm](https://github.com/user-attachments/assets/7554a7e5-6ff5-49ec-9d87-f821ea99950e)
 
 ## Features
 

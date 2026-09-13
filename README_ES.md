@@ -10,7 +10,7 @@
 [![Donate](https://img.shields.io/badge/Donate-Crypto-F7931A?style=flat&logo=bitcoin&logoColor=white)](#optional-support)
 </div>
 
-[moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
+[moviebox-tui-walkthrough.webm](https://github.com/user-attachments/assets/7554a7e5-6ff5-49ec-9d87-f821ea99950e)
 
 ## Qué incluye
 
@@ -119,8 +119,9 @@ Encuentra guías completas y detalles de arquitectura en [**mesamirh.github.io/M
 
 Si encuentras un fallo o tienes una idea para mejorar, cuéntanos en [GitHub Issues](https://github.com/mesamirh/MovieBox-Tui/issues).
 
-<details id="optional-support">
+<details>
 <summary><b>Apoyar el desarrollo</b></summary>
+<div id="optional-support" tabindex="-1"></div>
 
 Si deseas apoyar el desarrollo directamente:
 

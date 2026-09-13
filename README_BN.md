@@ -10,7 +10,7 @@
 [![Donate](https://img.shields.io/badge/Donate-Crypto-F7931A?style=flat&logo=bitcoin&logoColor=white)](#optional-support)
 </div>
 
-[moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
+[moviebox-tui-walkthrough.webm](https://github.com/user-attachments/assets/7554a7e5-6ff5-49ec-9d87-f821ea99950e)
 
 ## কী কী সুবিধা আছে
 
@@ -119,8 +119,9 @@ moviebox-tui
 
 কোনো বাগ পেলে বা নতুন ফিচারের আইডিয়া থাকলে নির্দ্বিধায় [GitHub Issues](https://github.com/mesamirh/MovieBox-Tui/issues) এ জানান।
 
-<details id="optional-support">
+<details>
 <summary><b>ডেভেলপমেন্টে সাপোর্ট করুন</b></summary>
+<div id="optional-support" tabindex="-1"></div>
 
 প্রজেক্টের নিয়মিত ডেভেলপমেন্টে সাপোর্ট করতে চাইলে:
 

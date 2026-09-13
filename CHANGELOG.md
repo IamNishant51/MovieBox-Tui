@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Modal Geometry and Margin Symmetrization**:
+  - Balanced four-sided padding in `draw_updating_modal` ("Self-Update in Progress"), standardizing outer dimensions to 50x7 columns with equal 1-row top and bottom margins and symmetrical side margins.
+  - Symmetrized "Update Available" modal layout in `src/tui/overlay.rs` by calculating exact rendered line heights instead of over-allocating fixed header and footer rows, eliminating empty vertical gaps above the button row.
+  - Removed premature text truncation in update modal bullet items, allowing release notes to span the full available width of the inner frame.
+  - Synchronized mouse click hitbox for update modal action buttons (`button_row_y`) with rendered button coordinates.
+  - Stripped redundant `"Press [o] to read full changelog on GitHub"` line from release note bodies to avoid duplicating the bottom `[o] Open Release Page` action button.
+
+### Fixed
+- **README Walkthrough Media Asset and Donate Anchor Focus**:
+  - Updated the WebM walkthrough video attachment link to the latest asset URL across all localized READMEs and documentation.
+  - Moved the `#optional-support` anchor target inside the collapsible `<details>` container with `tabindex="-1"`, enabling native browser ancestor-revealing and keyboard focus navigation to automatically expand the crypto donation section when clicking the Donate badge.
+
 ## [0.1.19] - 2026-09-13
 
 ### Added
