@@ -277,7 +277,7 @@ fn find_metadata(document: &Html, label: &str) -> Option<String> {
 }
 
 fn first_four_digit_year(value: &str) -> Option<String> {
-    let year = crate::tui::text::extract_4digit_year(value);
+    let year = crate::providers::models::extract_4digit_year(value);
     (!year.is_empty()).then_some(year)
 }
 

@@ -399,11 +399,6 @@ pub struct MetaDetail {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MetaDetailResponse {
-    pub meta: Option<MetaDetail>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StreamBehaviorHints {
     #[serde(rename = "notWebReady", default)]
     pub not_web_ready: bool,
@@ -422,12 +417,6 @@ pub struct StreamItem {
     pub url: Option<String>,
     #[serde(rename = "behaviorHints")]
     pub behavior_hints: Option<StreamBehaviorHints>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct StreamResponse {
-    #[serde(default)]
-    pub streams: Vec<StreamItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

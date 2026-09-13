@@ -47,6 +47,7 @@ fn test_settings_command_parsing_and_aliases() {
             "/favorites".to_string(),
             "/clear".to_string(),
             "/help".to_string(),
+            "/exit".to_string(),
         ]
     );
 

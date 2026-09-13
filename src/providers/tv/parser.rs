@@ -48,14 +48,16 @@ impl M3UParser {
             }
 
             if needs_download {
-                let res = self
-                    .client
-                    .get(trimmed)
-                    .send()
-                    .await?
-                    .error_for_status()?
-                    .text()
-                    .await?;
+                let resp = self.client.get(trimmed).send().await?.error_for_status()?;
+                if let Some(cl) = resp.content_length() {
+                    if cl > 15 * 1024 * 1024 {
+                        return Err("remote playlist exceeds maximum 15MB size limit".into());
+                    }
+                }
+                let res = resp.text().await?;
+                if res.len() > 15 * 1024 * 1024 {
+                    return Err("remote playlist exceeds maximum 15MB size limit".into());
+                }
                 let _ = crate::cache::atomic_write_file_async(&file_path, res.as_bytes()).await;
                 res
             } else {
@@ -84,14 +86,16 @@ impl M3UParser {
         if is_remote && channels.is_empty() {
             let file_path = self.cache_dir.join(cache_filename(trimmed));
             let _ = tokio::fs::remove_file(&file_path).await;
-            let fresh = self
-                .client
-                .get(trimmed)
-                .send()
-                .await?
-                .error_for_status()?
-                .text()
-                .await?;
+            let resp = self.client.get(trimmed).send().await?.error_for_status()?;
+            if let Some(cl) = resp.content_length() {
+                if cl > 15 * 1024 * 1024 {
+                    return Err("remote playlist exceeds maximum 15MB size limit".into());
+                }
+            }
+            let fresh = resp.text().await?;
+            if fresh.len() > 15 * 1024 * 1024 {
+                return Err("remote playlist exceeds maximum 15MB size limit".into());
+            }
             let fresh_channels = self.parse_m3u(&fresh);
             if fresh_channels.is_empty() {
                 return Ok(fresh_channels);

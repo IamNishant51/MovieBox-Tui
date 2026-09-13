@@ -507,14 +507,9 @@ impl App {
         let mut download_area = None;
 
         if self.state.download_progress.is_some() {
-            use ratatui::layout::{Constraint, Direction, Layout};
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(0), Constraint::Length(3)])
-                .split(main_area);
-
-            main_area = chunks[0];
-            download_area = Some(chunks[1]);
+            let [m, d] = Self::split_main_and_download(main_area);
+            main_area = m;
+            download_area = Some(d);
         }
 
         match self.state.active_screen {
@@ -531,6 +526,7 @@ impl App {
         }
 
         self.draw_download_gauge(frame, download_area);
+
         self.draw_settings_modal(frame, area);
         self.draw_sources_picker(frame, area);
         self.draw_theme_picker(frame, area);
@@ -546,6 +542,15 @@ impl App {
             self.state.basic_terminal,
             self.state.download_progress.is_some(),
         );
+    }
+
+    pub fn split_main_and_download(area: ratatui::layout::Rect) -> [ratatui::layout::Rect; 2] {
+        use ratatui::layout::{Constraint, Direction, Layout};
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(3)])
+            .split(area);
+        [chunks[0], chunks[1]]
     }
 
     fn draw_resize_badge(&self, frame: &mut Frame, area: Rect) -> bool {

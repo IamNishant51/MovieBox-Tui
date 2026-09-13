@@ -82,17 +82,21 @@ pub async fn probe_url(url: &str, timeout: std::time::Duration) -> bool {
     else {
         return false;
     };
-    if client.head(url).send().await.is_ok() {
-        return true;
+    if let Ok(resp) = client.head(url).send().await {
+        if resp.status().is_success() || resp.status().is_redirection() {
+            return true;
+        }
     }
-    client.get(url).send().await.is_ok()
+    if let Ok(resp) = client.get(url).send().await {
+        return resp.status().is_success() || resp.status().is_redirection();
+    }
+    false
 }
 
 pub fn is_http_url(source: &str) -> bool {
     let trimmed = source.trim();
     trimmed.starts_with("http://") || trimmed.starts_with("https://")
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

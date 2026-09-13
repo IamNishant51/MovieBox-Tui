@@ -213,45 +213,12 @@ impl CircleFtpClient {
         let r#type = json.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
         let quality_str = json.get("quality").and_then(|v| v.as_str()).unwrap_or("HD");
-        let quality = if quality_str.to_lowercase().contains("1080p") {
-            Some("1080p".to_string())
-        } else if quality_str.to_lowercase().contains("720p") {
-            Some("720p".to_string())
-        } else if quality_str.to_lowercase().contains("4k")
-            || quality_str.to_lowercase().contains("2160p")
-        {
-            Some("4k".to_string())
-        } else {
-            Some(quality_str.to_string())
-        };
+        let quality = crate::providers::bdix::common::detect_resolution(quality_str)
+            .or_else(|| Some(quality_str.to_string()));
 
         let title_str = json.get("title").and_then(|v| v.as_str()).unwrap_or("");
-
-        let t_lower = title_str.to_lowercase();
-
-        let codec = [
-            ("x264", "x264"),
-            ("h264", "x264"),
-            ("x265", "HEVC"),
-            ("hevc", "HEVC"),
-            ("av1", "AV1"),
-        ]
-        .iter()
-        .find(|(k, _)| t_lower.contains(k))
-        .map(|(_, v)| v.to_string());
-
-        let language = [
-            ("hindi", "Hindi"),
-            ("bengali", "Bengali"),
-            ("bangla", "Bengali"),
-            ("english", "English"),
-            ("tamil", "Tamil"),
-            ("telugu", "Telugu"),
-            ("malayalam", "Malayalam"),
-        ]
-        .iter()
-        .find(|(k, _)| t_lower.contains(k))
-        .map(|(_, v)| v.to_string());
+        let codec = crate::providers::bdix::common::detect_codec(title_str);
+        let language = crate::providers::bdix::common::detect_audio_language(title_str);
 
         if r#type == "series" {
             if let (Some(target_s), Some(target_e)) = (season, episode) {

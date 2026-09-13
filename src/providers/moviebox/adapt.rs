@@ -91,7 +91,7 @@ pub fn moviebox_subject_json_to_catalog_item(s: &serde_json::Value) -> Option<Ca
         .or_else(|| s.get("year"))
         .or_else(|| s.get("releaseInfo"))
         .and_then(|y| y.as_str())
-        .map(crate::tui::text::extract_4digit_year)
+        .map(crate::providers::models::extract_4digit_year)
         .filter(|y| !y.is_empty());
 
     let poster_url = s
@@ -270,7 +270,7 @@ pub fn moviebox_details_json_to_media_details(
         .get("releaseDate")
         .or_else(|| subject.get("year"))
         .and_then(|y| y.as_str())
-        .map(crate::tui::text::extract_4digit_year)
+        .map(crate::providers::models::extract_4digit_year)
         .filter(|y| !y.is_empty());
 
     let description = subject

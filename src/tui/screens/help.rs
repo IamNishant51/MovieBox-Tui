@@ -118,7 +118,8 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     if !two_columns && all_lines.len() > capacity {
         let max_scroll = all_lines.len().saturating_sub(capacity);
         let scroll = state.help_scroll.min(max_scroll);
-        let window: Vec<Line> = all_lines[scroll..scroll + capacity.min(all_lines.len())].to_vec();
+        let end = (scroll + capacity).min(all_lines.len());
+        let window: Vec<Line> = all_lines[scroll..end].to_vec();
         let position = if max_scroll > 0 {
             format!(" · {}/{}", scroll + 1, max_scroll)
         } else {

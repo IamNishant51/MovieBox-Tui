@@ -1193,7 +1193,8 @@ impl App {
                 }
                 let service = self.service.clone();
                 let sender = self.action_sender.clone();
-                tokio::spawn(async move {
+                self.request_tasks.cancel_stream_pool_init();
+                self.request_tasks.stream_pool_init = Some(tokio::spawn(async move {
                     let resolutions = service
                         .fetch_collection_resolutions(&subject_id)
                         .await
@@ -1201,7 +1202,7 @@ impl App {
                     sender
                         .send(Action::StreamPoolInitialized(subject_id, resolutions))
                         .ok();
-                });
+                }));
             }
 
             Action::StreamPoolInitialized(subject_id, resolutions) => {

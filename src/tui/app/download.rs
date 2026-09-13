@@ -381,12 +381,19 @@ impl App {
                 }
             } else {
                 let progress_sender = sender.clone();
+                let mut last_progress_send = std::time::Instant::now();
                 let result = crate::download::download(
                     &client,
                     &link,
                     &destination,
                     cancel,
                     move |progress| {
+                        if last_progress_send.elapsed() < std::time::Duration::from_millis(100)
+                            && progress.downloaded < progress.total.unwrap_or_default()
+                        {
+                            return;
+                        }
+                        last_progress_send = std::time::Instant::now();
                         let total = progress.total.unwrap_or_default();
                         let percentage = if total > 0 {
                             progress.downloaded as f64 / total as f64 * 100.0

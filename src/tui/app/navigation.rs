@@ -139,7 +139,10 @@ impl App {
                 let context = self.request_context();
                 let request_id = self.state.active_search_request;
                 self.state.is_loading = true;
-                tokio::spawn(async move {
+                if let Some(h) = self.request_tasks.search.take() {
+                    h.abort();
+                }
+                self.request_tasks.search = Some(tokio::spawn(async move {
                     let q = query.clone();
                     let provider = context.provider;
                     if let Ok(Some(cached)) = tokio::task::spawn_blocking(move || {
@@ -193,7 +196,7 @@ impl App {
                                 .ok();
                         }
                     }
-                });
+                }));
             }
         }
     }
@@ -291,14 +294,15 @@ impl App {
                 let sender = self.action_sender.clone();
                 let context = self.request_context();
                 let request_id = self.state.active_resource_request;
-                tokio::spawn(async move {
+                self.request_tasks.cancel_episode_prefetch();
+                self.request_tasks.episode_prefetch = Some(tokio::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(120)).await;
                     sender
                         .send(Action::EpisodeStreamsReady(
                             context, request_id, id, se, ep, streams,
                         ))
                         .ok();
-                });
+                }));
             } else {
                 self.state.selected_resources.clear();
                 self.state.is_loading = true;
@@ -484,10 +488,13 @@ impl App {
 
             Action::MoveUp => {
                 if self.state.player_picker_popup {
+                    if self.state.available_players.is_empty() {
+                        return None;
+                    }
                     let i = match self.state.player_picker_state.selected() {
                         Some(i) => {
                             if i == 0 {
-                                self.state.available_players.len() - 1
+                                self.state.available_players.len().saturating_sub(1)
                             } else {
                                 i - 1
                             }
@@ -571,9 +578,13 @@ impl App {
 
             Action::MoveDown => {
                 if self.state.player_picker_popup {
+                    if self.state.available_players.is_empty() {
+                        return None;
+                    }
+                    let max_idx = self.state.available_players.len().saturating_sub(1);
                     let i = match self.state.player_picker_state.selected() {
                         Some(i) => {
-                            if i >= self.state.available_players.len() - 1 {
+                            if i >= max_idx {
                                 0
                             } else {
                                 i + 1
@@ -609,10 +620,14 @@ impl App {
                             self.state.favorites_landing_state.select(Some(0));
                             return None;
                         }
+                        if self.state.search_results.is_empty() {
+                            return None;
+                        }
                         let current = self.state.search_list_state.selected().unwrap_or(0);
                         let down_step = self.result_grid_columns();
-                        let next = (current + down_step).min(self.state.search_results.len() - 1);
-                        if next != current && !self.state.search_results.is_empty() {
+                        let max_idx = self.state.search_results.len().saturating_sub(1);
+                        let next = (current + down_step).min(max_idx);
+                        if next != current {
                             self.state.search_list_state.select(Some(next));
                             if let Some(res) = self.state.search_results.get(next) {
                                 self.action_sender

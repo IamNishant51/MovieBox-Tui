@@ -125,7 +125,7 @@ pub fn download_confirm_layout(
 }
 
 pub fn download_confirm_action_row(popup: Rect, summary_lines: usize) -> u16 {
-    popup.y + summary_lines as u16 + 1
+    (popup.y + summary_lines as u16 + 1).min(popup.bottom().saturating_sub(1))
 }
 
 pub fn picker(
@@ -211,6 +211,24 @@ pub fn picker_with_lines<'a>(
             theme,
             basic_terminal,
         );
+    }
+}
+
+pub fn browse_category_badge_text(label: &str) -> &'static str {
+    let lower = label.to_ascii_lowercase();
+    if lower.contains("movie")
+        || lower.contains("top rated (all-time)")
+        || lower.contains("top rated (recent")
+    {
+        "[MOVIES]"
+    } else if lower.contains("series")
+        || lower.contains("airing")
+        || lower.contains("show")
+        || lower.contains("tv")
+    {
+        "[SERIES]"
+    } else {
+        "[DISCOVER]"
     }
 }
 
@@ -328,7 +346,7 @@ pub fn notifications(
             !notification.message.is_empty() && notification.message != notification.title;
 
         let title_w = crate::tui::text::width(&notification.title).saturating_add(6);
-        let badge_w = badge.len().saturating_add(6);
+        let badge_w = crate::tui::text::width(badge).saturating_add(6);
         let raw_msg_w = if has_message {
             crate::tui::text::width(&notification.message).saturating_add(6)
         } else {
@@ -559,7 +577,7 @@ pub fn notification_rects(
             !notification.message.is_empty() && notification.message != notification.title;
 
         let title_w = crate::tui::text::width(&notification.title).saturating_add(6);
-        let badge_w = badge.len().saturating_add(6);
+        let badge_w = crate::tui::text::width(badge).saturating_add(6);
         let raw_msg_w = if has_message {
             crate::tui::text::width(&notification.message).saturating_add(6)
         } else {

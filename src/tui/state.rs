@@ -583,11 +583,13 @@ impl AppState {
         if available_providers.is_empty() {
             return self.active_provider;
         }
-        let current = available_providers
+        match available_providers
             .iter()
             .position(|provider| *provider == self.active_provider)
-            .unwrap_or(0);
-        available_providers[(current + 1) % available_providers.len()]
+        {
+            None => available_providers[0],
+            Some(current) => available_providers[(current + 1) % available_providers.len()],
+        }
     }
 
     pub fn notify(

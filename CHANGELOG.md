@@ -13,6 +13,32 @@
 
 
 ### Fixed
+- **Crash Hardening & Bounds Safety**:
+  - Fixed potential `usize` arithmetic underflow on empty search results in navigation handler (`.saturating_sub(1)`).
+  - Fixed potential `usize` arithmetic underflow on empty player picker navigation.
+  - Guarded JWT token split indexing with safe `.get(1)` pattern matching in MovieBox session parser.
+  - Hardened string slicing against non-ASCII UTF-8 character boundary hazards in DhakaFlix title/year parsing.
+  - Bounded help modal line-window slicing index to prevent out-of-bounds panics under constrained terminal heights.
+  - Clamped confirmation dialog action-row coordinate calculation to modal bounds on small screens.
+- **UI Layout & Mouse Synchronization**:
+  - Extracted shared `split_main_and_download` layout helper, eliminating constraint divergence between mouse hit testing and rendering passes.
+  - Synchronized details screen workflow step mouse hit-detection with dynamic text layout bounds.
+  - Replaced byte length count with display Unicode width for notification toast badge column derivations.
+  - Fixed addon manager badge column calculation to derive from visual Unicode width.
+  - Fixed provider selection popup list scroll state retention in Home screen rendering.
+- **Concurrency, Architecture & Network Safety**:
+  - Resolved architectural layer violation where provider modules directly imported text utilities from TUI presentation layer.
+  - Tracked pagination search, stream pool initialization, and episode prefetch tasks in `RequestTaskHandles` for prompt cancellation on navigation.
+  - Offloaded synchronous filesystem writes and directory creations in playback, download, and startup paths to background threads.
+  - Throttled high-frequency download progress channel event dispatch to 100ms intervals.
+  - Filtered forwarded Stremio addon stream HTTP headers against strict allowlist to prevent SSRF or credential leakage.
+  - Hardened network URL reachability probe to enforce HTTP 2xx/3xx status verification.
+  - Enforced response body size limits on remote IPTV M3U playlists (15 MB).
+  - Propagated DhakaFlix network errors instead of silently swallowing empty streams.
+  - Fixed `next_provider` navigation to handle currently disabled active providers correctly.
+  - Consolidated `/exit` slash command in autocomplete candidate suggestions.
+  - Centralized BDIX codec, resolution, and audio language heuristics into shared module.
+  - Pruned unused structs and dead code in CircleFTP and Addon models.
 - **VLC Sidecar Proxy Correctness**:
   - Replaced `reqwest::Client::timeout(30s)` (a hard deadline over the entire response body) with `connect_timeout(15s)` only; per-chunk idle timeout (60s) now signals stalled transfers without terminating long-running video streams mid-playback.
   - Introduced a `ConnectionGuard` RAII wrapper ensuring `active_connections` is atomically decremented even when a connection handler task panics, eliminating a counter leak that kept the sidecar alive indefinitely under 24/7 operation.

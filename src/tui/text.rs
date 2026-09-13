@@ -435,38 +435,7 @@ pub fn format_subtitle_label(name: &str) -> String {
     }
 }
 
-pub fn strip_emojis(input: &str) -> String {
-    input
-        .chars()
-        .filter(|&c| {
-            let u = c as u32;
-            !((0x1F000..=0x1FAFF).contains(&u)
-                || (0x2600..=0x27BF).contains(&u)
-                || (0x2300..=0x23FF).contains(&u)
-                || (0x2B00..=0x2BFF).contains(&u)
-                || (0xFE00..=0xFE0F).contains(&u)
-                || u == 0x200D)
-        })
-        .collect::<String>()
-}
-
-pub fn clean_stream_text(input: &str) -> String {
-    let without_emojis = strip_emojis(input);
-    let mut cleaned = String::new();
-    let mut last_was_space = false;
-    for c in without_emojis.chars() {
-        if c.is_whitespace() {
-            if !last_was_space && !cleaned.is_empty() {
-                cleaned.push(' ');
-                last_was_space = true;
-            }
-        } else {
-            cleaned.push(c);
-            last_was_space = false;
-        }
-    }
-    cleaned.trim().to_string()
-}
+pub use crate::providers::models::{clean_stream_text, strip_emojis};
 
 pub const CTRL_S_STR: &str = if cfg!(target_os = "macos") {
     "^S"
@@ -530,14 +499,7 @@ pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
 }
 
 pub use crate::net::is_http_url;
-pub fn extract_4digit_year(raw: &str) -> String {
-    raw.as_bytes()
-        .windows(4)
-        .find(|window| window.iter().all(u8::is_ascii_digit) && matches!(window[0], b'1' | b'2'))
-        .and_then(|window| std::str::from_utf8(window).ok())
-        .map(str::to_string)
-        .unwrap_or_default()
-}
+pub use crate::providers::models::extract_4digit_year;
 
 pub fn format_duration(secs: u64) -> String {
     let h = secs / 3600;

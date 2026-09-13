@@ -50,10 +50,9 @@ impl MovieBoxSession {
 
 pub fn parse_jwt_claims(token: &str) -> (Option<String>, Option<u64>) {
     let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() < 2 {
+    let Some(&payload_b64) = parts.get(1) else {
         return (None, None);
-    }
-    let payload_b64 = parts[1];
+    };
     let pad_len = (4 - (payload_b64.len() % 4)) % 4;
     let padded = format!("{}{}", payload_b64, "=".repeat(pad_len));
 

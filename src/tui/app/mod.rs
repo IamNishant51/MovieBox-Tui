@@ -25,6 +25,8 @@ pub struct RequestTaskHandles {
     pub suggest: Option<tokio::task::JoinHandle<()>>,
     pub homepage: Option<tokio::task::JoinHandle<()>>,
     pub download: Option<tokio::task::JoinHandle<()>>,
+    pub stream_pool_init: Option<tokio::task::JoinHandle<()>>,
+    pub episode_prefetch: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl RequestTaskHandles {
@@ -63,6 +65,18 @@ impl RequestTaskHandles {
         }
     }
 
+    pub fn cancel_stream_pool_init(&mut self) {
+        if let Some(h) = self.stream_pool_init.take() {
+            h.abort();
+        }
+    }
+
+    pub fn cancel_episode_prefetch(&mut self) {
+        if let Some(h) = self.episode_prefetch.take() {
+            h.abort();
+        }
+    }
+
     pub fn cancel_all(&mut self) {
         self.cancel_search();
         self.cancel_details();
@@ -70,6 +84,8 @@ impl RequestTaskHandles {
         self.cancel_suggest();
         self.cancel_homepage();
         self.cancel_download();
+        self.cancel_stream_pool_init();
+        self.cancel_episode_prefetch();
     }
 }
 
@@ -251,17 +267,19 @@ impl App {
         let Some(path) = crate::config::tv_path() else {
             return;
         };
-        if let Some(app_dir) = path.parent()
-            && std::fs::create_dir_all(app_dir).is_err()
-        {
-            return;
-        }
         let Ok(json) = serde_json::to_string_pretty(&self.state.tv_playlists) else {
             return;
         };
-        if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
-            log::warn!("failed to save tv playlists: {error}");
-        }
+        tokio::task::spawn_blocking(move || {
+            if let Some(app_dir) = path.parent()
+                && std::fs::create_dir_all(app_dir).is_err()
+            {
+                return;
+            }
+            if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
+                log::warn!("failed to save tv playlists: {error}");
+            }
+        });
     }
 
     fn load_tv_playlists_from_config(&mut self) {

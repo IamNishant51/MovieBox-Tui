@@ -23,13 +23,17 @@ fn parse_title_and_year(raw_title: &str) -> (String, Option<String>) {
     let mut year = None;
 
     if let Some(start) = title.rfind('(') {
-        if let Some(end) = title[start..].find(')') {
-            let year_str = &title[start + 1..start + end];
-            let extracted = crate::tui::text::extract_4digit_year(year_str);
-            if extracted.len() == 4 && year_str.trim().len() == 4 {
-                year = Some(extracted);
-                title = title[..start].trim().to_string();
-                return (title, year);
+        if let Some(rel_end) = title.get(start..).and_then(|s| s.find(')')) {
+            let end = start + rel_end;
+            if let (Some(year_slice), Some(title_slice)) =
+                (title.get(start + 1..end), title.get(..start))
+            {
+                let extracted = crate::providers::models::extract_4digit_year(year_slice);
+                if extracted.len() == 4 && year_slice.trim().len() == 4 {
+                    year = Some(extracted);
+                    title = title_slice.trim().to_string();
+                    return (title, year);
+                }
             }
         }
     }
@@ -40,7 +44,10 @@ fn parse_title_and_year(raw_title: &str) -> (String, Option<String>) {
     ];
     for q in qualities {
         if lower.ends_with(q) {
-            title = title[..title.len() - q.len()].trim().to_string();
+            let trim_len = title.len().saturating_sub(q.len());
+            if let Some(prefix) = title.get(..trim_len) {
+                title = prefix.trim().to_string();
+            }
             break;
         }
     }
@@ -352,91 +359,62 @@ impl DhakaFlixClient {
                 }
             });
 
-            if let Ok(resp) = self.client.post(&api_url).json(&body).send().await {
-                if let Ok(json) = resp.json::<serde_json::Value>().await {
-                    if let Some(items_arr) = json.get("items").and_then(|v| v.as_array()) {
-                        for item in items_arr {
-                            if let (Some(item_href), Some(size)) = (
-                                item.get("href").and_then(|v| v.as_str()),
-                                item.get("size").and_then(|v| v.as_u64()),
-                            ) {
-                                let filename = item_href
-                                    .split('/')
-                                    .next_back()
-                                    .unwrap_or("Unknown")
-                                    .to_string();
-                                let filename_decoded =
-                                    percent_encoding::percent_decode_str(&filename)
-                                        .decode_utf8_lossy()
-                                        .to_string();
+            let resp = self
+                .client
+                .post(&api_url)
+                .json(&body)
+                .send()
+                .await?
+                .error_for_status()?;
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(items_arr) = json.get("items").and_then(|v| v.as_array()) {
+                    for item in items_arr {
+                        if let (Some(item_href), Some(size)) = (
+                            item.get("href").and_then(|v| v.as_str()),
+                            item.get("size").and_then(|v| v.as_u64()),
+                        ) {
+                            let filename = item_href
+                                .split('/')
+                                .next_back()
+                                .unwrap_or("Unknown")
+                                .to_string();
+                            let filename_decoded = percent_encoding::percent_decode_str(&filename)
+                                .decode_utf8_lossy()
+                                .to_string();
 
-                                let f_lower = filename_decoded.to_lowercase();
-                                if !f_lower.ends_with(".mkv")
-                                    && !f_lower.ends_with(".mp4")
-                                    && !f_lower.ends_with(".avi")
-                                    && !f_lower.ends_with(".webm")
-                                {
-                                    continue;
-                                }
-
-                                let quality = if f_lower.contains("1080p") {
-                                    Some("1080p".to_string())
-                                } else if filename_decoded.to_lowercase().contains("720p") {
-                                    Some("720p".to_string())
-                                } else if filename_decoded.to_lowercase().contains("2160p")
-                                    || filename_decoded.to_lowercase().contains("4k")
-                                {
-                                    Some("4K".to_string())
-                                } else {
-                                    Some("HD".to_string())
-                                };
-
-                                let mut language = None;
-                                let mut codec = None;
-
-                                if f_lower.contains("hindi") {
-                                    language = Some("Hindi".to_string());
-                                } else if f_lower.contains("bengali") || f_lower.contains("bangla")
-                                {
-                                    language = Some("Bengali".to_string());
-                                } else if f_lower.contains("tamil") {
-                                    language = Some("Tamil".to_string());
-                                } else if f_lower.contains("telugu") {
-                                    language = Some("Telugu".to_string());
-                                } else if f_lower.contains("dual") {
-                                    language = Some("Dual Audio".to_string());
-                                } else if f_lower.contains("multi") {
-                                    language = Some("Multi Audio".to_string());
-                                } else if f_lower.contains("english") {
-                                    language = Some("English".to_string());
-                                }
-
-                                if f_lower.contains("hevc") || f_lower.contains("x265") {
-                                    codec = Some("HEVC".to_string());
-                                } else if f_lower.contains("x264") || f_lower.contains("h264") {
-                                    codec = Some("x264".to_string());
-                                } else if f_lower.contains("av1") {
-                                    codec = Some("AV1".to_string());
-                                }
-
-                                releases.push(Release {
-                                    provider: ProviderKind::BdixDhakaFlix,
-                                    filename: filename_decoded,
-                                    quality,
-                                    codec,
-                                    language,
-                                    size_bytes: Some(size),
-                                    season: None,
-                                    episode: None,
-                                    mirrors: vec![crate::providers::models::SourceMirror {
-                                        label: "DhakaFlix".to_string(),
-                                        resolver_url: format!("{}{}", base_url, item_href),
-                                        headers: vec![],
-                                        direct_file: true,
-                                    }],
-                                    resource_id: None,
-                                });
+                            let f_lower = filename_decoded.to_lowercase();
+                            if !f_lower.ends_with(".mkv")
+                                && !f_lower.ends_with(".mp4")
+                                && !f_lower.ends_with(".avi")
+                                && !f_lower.ends_with(".webm")
+                            {
+                                continue;
                             }
+
+                            let quality =
+                                crate::providers::bdix::common::detect_resolution(&f_lower)
+                                    .or_else(|| Some("HD".to_string()));
+                            let language =
+                                crate::providers::bdix::common::detect_audio_language(&f_lower);
+                            let codec = crate::providers::bdix::common::detect_codec(&f_lower);
+
+                            releases.push(Release {
+                                provider: ProviderKind::BdixDhakaFlix,
+                                filename: filename_decoded,
+                                quality,
+                                codec,
+                                language,
+                                size_bytes: Some(size),
+                                season: None,
+                                episode: None,
+                                mirrors: vec![crate::providers::models::SourceMirror {
+                                    label: "DhakaFlix".to_string(),
+                                    resolver_url: format!("{}{}", base_url, item_href),
+                                    headers: vec![],
+                                    direct_file: true,
+                                }],
+                                resource_id: None,
+                            });
                         }
                     }
                 }

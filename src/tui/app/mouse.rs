@@ -4,7 +4,7 @@ use crate::tui::{
     overlay::NotificationKind,
     state::{BrowsePreset, DetailsPane, InputMode, Screen},
 };
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 
 impl App {
     pub(super) fn handle_mouse(&mut self, col: u16, row: u16) -> Option<Action> {
@@ -44,11 +44,7 @@ impl App {
         }
 
         if self.state.download_progress.is_some() {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(1), Constraint::Length(3)])
-                .split(area);
-            let dl_area = chunks[1];
+            let [_, dl_area] = crate::tui::app::App::split_main_and_download(area);
             if dl_area.contains(ratatui::layout::Position::new(col, row)) {
                 let cancel_rect = Rect {
                     x: dl_area.right().saturating_sub(14),
@@ -986,6 +982,7 @@ impl App {
             available_panes.push(DetailsPane::Episodes);
         }
 
+        let streams_count = self.state.selected_resources.len();
         let layout = crate::tui::screens::details::details_screen_layout(
             area,
             self.state.selected_details.as_ref(),
@@ -1000,13 +997,19 @@ impl App {
         }
 
         if workflow_area.height > 0 && row == workflow_area.y {
-            let count = available_panes.len() + 1;
-            let section_w = area.width / count as u16;
-            let pane_idx = (col / section_w.max(1)) as usize;
-            if pane_idx < available_panes.len() {
-                self.state.details_pane = available_panes[pane_idx];
-            } else {
-                self.state.details_pane = DetailsPane::Streams;
+            let (_, ranges) = crate::tui::screens::details::workflow_step_ranges(
+                area.width,
+                &self.state,
+                &details,
+                has_languages,
+                is_series,
+                streams_count,
+            );
+            for (pane, start_x, end_x) in ranges {
+                if col >= start_x && col < end_x {
+                    self.state.details_pane = pane;
+                    return None;
+                }
             }
             return None;
         }

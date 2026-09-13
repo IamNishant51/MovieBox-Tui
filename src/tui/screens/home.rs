@@ -2056,20 +2056,24 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
                 let mut badges = Vec::new();
                 let mut badges_w = 0;
                 if a.is_core() {
-                    badges.push(ratatui::text::Span::styled("[Core] ", theme.lavender));
-                    badges_w += 7;
+                    let label = "[Core] ";
+                    badges_w += crate::tui::text::width(label);
+                    badges.push(ratatui::text::Span::styled(label, theme.lavender));
                 }
                 if a.provides_meta {
-                    badges.push(ratatui::text::Span::styled("[Meta] ", theme.sapphire));
-                    badges_w += 7;
+                    let label = "[Meta] ";
+                    badges_w += crate::tui::text::width(label);
+                    badges.push(ratatui::text::Span::styled(label, theme.sapphire));
                 }
                 if a.provides_stream {
-                    badges.push(ratatui::text::Span::styled("[Streams] ", theme.rating));
-                    badges_w += 10;
+                    let label = "[Streams] ";
+                    badges_w += crate::tui::text::width(label);
+                    badges.push(ratatui::text::Span::styled(label, theme.rating));
                 }
                 if a.provides_catalog {
-                    badges.push(ratatui::text::Span::styled("[Catalog]", theme.teal));
-                    badges_w += 9;
+                    let label = "[Catalog]";
+                    badges_w += crate::tui::text::width(label);
+                    badges.push(ratatui::text::Span::styled(label, theme.teal));
                 }
                 let prefix_w = 2;
                 let check_w = 4;
@@ -2135,20 +2139,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
             .iter()
             .map(|label| {
                 let (_, spacing) = crate::tui::overlay::browse_category_badge(label, theme);
-                let badge_str = if label.to_ascii_lowercase().contains("movie")
-                    || label.to_ascii_lowercase().contains("top rated (all-time)")
-                    || label.to_ascii_lowercase().contains("top rated (recent")
-                {
-                    "[MOVIES]"
-                } else if label.to_ascii_lowercase().contains("series")
-                    || label.to_ascii_lowercase().contains("airing")
-                    || label.to_ascii_lowercase().contains("show")
-                    || label.to_ascii_lowercase().contains("tv")
-                {
-                    "[SERIES]"
-                } else {
-                    "[DISCOVER]"
-                };
+                let badge_str = crate::tui::overlay::browse_category_badge_text(label);
                 format!("  {badge_str}{spacing}{label}  ")
             })
             .collect();
@@ -2482,7 +2473,7 @@ fn render_provider_popup(
     frame: &mut Frame,
     area: Rect,
     search_bar_area: Rect,
-    state: &AppState,
+    state: &mut AppState,
     theme: &Theme,
 ) {
     if !state.show_provider_popup || search_bar_area.width == 0 {
@@ -2542,8 +2533,7 @@ fn render_provider_popup(
             state.basic_terminal,
         ))
         .highlight_symbol("");
-    let mut list_state = state.provider_list_state;
-    frame.render_stateful_widget(list, inner_area, &mut list_state);
+    frame.render_stateful_widget(list, inner_area, &mut state.provider_list_state);
 }
 
 pub fn search_results_layout(area: Rect) -> (Rect, Rect) {
@@ -2954,7 +2944,7 @@ mod tests {
             .draw(|frame| {
                 let area = Rect::new(0, 0, 80, 24);
                 let search_bar = Rect::new(10, 2, 60, 3);
-                render_provider_popup(frame, area, search_bar, &state, &theme);
+                render_provider_popup(frame, area, search_bar, &mut state, &theme);
             })
             .unwrap();
 

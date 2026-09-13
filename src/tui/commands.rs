@@ -64,17 +64,8 @@ impl SlashCommand {
         let lower = query.to_ascii_lowercase();
         let mut results = Vec::new();
 
-        let candidates: [(&str, Self); 7] = [
-            ("/settings", Self::Settings),
-            ("/browse", Self::Browse),
-            ("/history", Self::History),
-            ("/favorites", Self::Favorites),
-            ("/clear", Self::Clear),
-            ("/help", Self::Help),
-            ("/list", Self::List),
-        ];
-
-        for (name, cmd) in candidates {
+        for cmd in Self::ALL {
+            let name = cmd.name();
             if !cmd.is_available(state) {
                 continue;
             }
@@ -157,6 +148,7 @@ mod tests {
                 "/favorites".to_string(),
                 "/clear".to_string(),
                 "/help".to_string(),
+                "/exit".to_string(),
             ]
         );
 

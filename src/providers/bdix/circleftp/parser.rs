@@ -19,20 +19,6 @@ pub struct CircleFtpSearchResponse {
     pub posts: Option<Vec<CircleFtpPost>>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CircleFtpSeason {
-    pub season_name: Option<String>,
-    pub episodes: Option<Vec<CircleFtpEpisode>>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CircleFtpEpisode {
-    pub title: Option<String>,
-    pub link: Option<String>,
-}
-
 pub fn circleftp_search_to_catalog(response: &CircleFtpSearchResponse) -> Vec<CatalogItem> {
     let mut items = Vec::new();
     if let Some(posts) = &response.posts {

@@ -1740,51 +1740,14 @@ fn render_workflow(
     if area.height == 0 || area.width == 0 {
         return;
     }
-    let compact = area.width < 100;
-    let mut steps = Vec::new();
-
-    if has_languages {
-        let active_idx = details
-            .dubs
-            .iter()
-            .position(|dub| {
-                dub.subject_id == state.active_subject_id.as_deref().unwrap_or_default()
-            })
-            .or_else(|| state.language_list_state.selected())
-            .unwrap_or(0);
-
-        let language = details
-            .dubs
-            .get(active_idx)
-            .map(|dub| clean_language_name(&dub.language))
-            .unwrap_or_else(|| "Choose".to_string());
-        steps.push((
-            crate::tui::state::DetailsPane::Languages,
-            format!("Audio: {language}"),
-        ));
-    }
-    if is_series {
-        steps.push((
-            crate::tui::state::DetailsPane::Seasons,
-            if compact {
-                format!("S{}", state.selected_season)
-            } else {
-                format!("Season {}", state.selected_season)
-            },
-        ));
-
-        let ep_label = if compact {
-            format!("E{}", state.selected_episode)
-        } else {
-            format!("Episode {}", state.selected_episode)
-        };
-
-        steps.push((crate::tui::state::DetailsPane::Episodes, ep_label));
-    }
-    steps.push((
-        crate::tui::state::DetailsPane::Streams,
-        format!("Streams: {streams_count}"),
-    ));
+    let (steps, _step_ranges) = workflow_step_ranges(
+        area.width,
+        state,
+        details,
+        has_languages,
+        is_series,
+        streams_count,
+    );
 
     if area.width < 60 {
         let position = steps
@@ -1852,6 +1815,96 @@ fn render_workflow(
         Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
         area,
     );
+}
+
+pub type WorkflowStep = (crate::tui::state::DetailsPane, String);
+pub type WorkflowRange = (crate::tui::state::DetailsPane, u16, u16);
+
+pub fn workflow_step_ranges(
+    area_width: u16,
+    state: &AppState,
+    details: &MediaDetails,
+    has_languages: bool,
+    is_series: bool,
+    streams_count: usize,
+) -> (Vec<WorkflowStep>, Vec<WorkflowRange>) {
+    let compact = area_width < 100;
+    let mut steps = Vec::new();
+
+    if has_languages {
+        let active_idx = details
+            .dubs
+            .iter()
+            .position(|dub| {
+                dub.subject_id == state.active_subject_id.as_deref().unwrap_or_default()
+            })
+            .or_else(|| state.language_list_state.selected())
+            .unwrap_or(0);
+
+        let language = details
+            .dubs
+            .get(active_idx)
+            .map(|dub| clean_language_name(&dub.language))
+            .unwrap_or_else(|| "Choose".to_string());
+        steps.push((
+            crate::tui::state::DetailsPane::Languages,
+            format!("Audio: {language}"),
+        ));
+    }
+    if is_series {
+        steps.push((
+            crate::tui::state::DetailsPane::Seasons,
+            if compact {
+                format!("S{}", state.selected_season)
+            } else {
+                format!("Season {}", state.selected_season)
+            },
+        ));
+
+        let ep_label = if compact {
+            format!("E{}", state.selected_episode)
+        } else {
+            format!("Episode {}", state.selected_episode)
+        };
+
+        steps.push((crate::tui::state::DetailsPane::Episodes, ep_label));
+    }
+    steps.push((
+        crate::tui::state::DetailsPane::Streams,
+        format!("Streams: {streams_count}"),
+    ));
+
+    let sep_len = if state.basic_terminal { 3 } else { 5 };
+    let marker_len = 2; // "> " or "› "
+    let mut total_w = 0;
+    for (idx, (pane, label)) in steps.iter().enumerate() {
+        if idx > 0 {
+            total_w += sep_len;
+        }
+        if *pane == state.details_pane {
+            total_w += marker_len;
+        }
+        total_w += crate::tui::text::width(label) as u16;
+    }
+
+    let start_x = area_width.saturating_sub(total_w) / 2;
+    let mut current_x = start_x;
+    let mut ranges = Vec::new();
+
+    for (idx, (pane, label)) in steps.iter().enumerate() {
+        if idx > 0 {
+            current_x += sep_len;
+        }
+        let step_start = current_x;
+        let mut step_w = crate::tui::text::width(label) as u16;
+        if *pane == state.details_pane {
+            step_w += marker_len;
+        }
+        current_x += step_w;
+        ranges.push((*pane, step_start, current_x));
+    }
+
+    (steps, ranges)
 }
 
 fn footer_group(
