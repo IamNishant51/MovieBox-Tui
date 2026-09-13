@@ -240,8 +240,10 @@ async fn test_mouse_click_search_input_mode() {
 async fn test_mouse_click_favorites_item_focuses_and_selects() {
     let mut app = App::new();
     app.state_mut().is_tv_mode = false;
+    app.state_mut().streaming_enabled = true;
     app.state_mut()
         .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
+    app.state_mut().favorites.clear();
     app.state_mut()
         .favorites
         .items
@@ -254,7 +256,7 @@ async fn test_mouse_click_favorites_item_focuses_and_selects() {
             release_year: "2010".to_string(),
             added_at: 100,
         });
-
+    app.state_mut().favorites.rebuild_index();
     let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
     let cols = if cols == 0 { 80 } else { cols };
     let rows = if rows == 0 { 24 } else { rows };
@@ -485,7 +487,11 @@ async fn test_ctrl_w_deletes_backward_word() {
 async fn test_f_key_toggles_favorite_on_home_results() {
     let mut app = App::new();
     app.state_mut().active_screen = Screen::Home;
-    app.state_mut().favorites.items.clear();
+    app.state_mut().is_tv_mode = false;
+    app.state_mut().streaming_enabled = true;
+    app.state_mut()
+        .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
+    app.state_mut().favorites.clear();
     let res = SearchResult {
         id: "100".to_string(),
         title: "Test Movie".to_string(),
@@ -941,7 +947,7 @@ async fn test_home_deck_tab_switching() {
     app.state_mut()
         .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
     app.state_mut().history.recent.clear();
-    app.state_mut().favorites.items.clear();
+    app.state_mut().favorites.clear();
 
     app.state_mut()
         .history
@@ -1025,7 +1031,7 @@ async fn test_home_deck_continue_watching_resume() {
     app.state_mut()
         .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
     app.state_mut().history.recent.clear();
-    app.state_mut().favorites.items.clear();
+    app.state_mut().favorites.clear();
 
     app.state_mut()
         .history
@@ -1070,7 +1076,7 @@ async fn test_landing_deck_header_renders_without_star_or_bracket() {
     app.state_mut()
         .set_mode(moviebox_tui::tui::state::AppMode::Streaming);
     app.state_mut().history.recent.clear();
-    app.state_mut().favorites.items.clear();
+    app.state_mut().favorites.clear();
 
     app.state_mut()
         .history
