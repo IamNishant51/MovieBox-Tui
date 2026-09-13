@@ -12,6 +12,10 @@
   - Updated `supports_headers` and `header_capable_players` in `src/player.rs` to allow VLC as a supported player for all streaming sources.
 
 
+- **Android Intent MovieBox Playback via Loopback Proxy**:
+  - Extended loopback HTTP sidecar proxy (`src/proxy.rs`) to support `PlayerKind::AndroidIntent` for streams requiring CloudFront signed cookies.
+  - Enabled `AndroidIntent` in `supports_headers` and `header_capable_players`, allowing external players on Android (VLC, MX Player, Just Player) to play MovieBox streams without header compatibility errors.
+  - Added proxy route `/sub/<encoded_url>` with CORS headers and proper MIME typing (`application/x-subrip`, `text/vtt`), injecting WebVTT adaptation sets into MPEG-DASH manifests.
 ### Fixed
 - **Crash Hardening & Bounds Safety**:
   - Fixed potential `usize` arithmetic underflow on empty search results in navigation handler (`.saturating_sub(1)`).
