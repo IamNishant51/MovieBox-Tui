@@ -1,8 +1,14 @@
+<div align="center">
+
 # MovieBox-TUI
 
-Terminal interface to find, download, and stream movies, TV shows, and live TV using local media players.
+**Terminal interface to find, download, and stream movies, TV shows, and live TV using local media players.**
+
+[ English ](README.md) • [ বাংলা ](README_BN.md) • [ हिन्दी ](README_HI.md) • [ Español ](README_ES.md)
 
 [![Telegram](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@getfromme&style=flat&logo=true)](https://t.me/getfromme)
+
+</div>
 
 [moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
 
@@ -43,9 +49,9 @@ curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.
 Homebrew (macOS):
 ```bash
 brew tap mesamirh/moviebox-tui https://github.com/mesamirh/MovieBox-Tui
-brew trust mesamirh/moviebox-tui
 brew install moviebox-tui
 ```
+*Note:* If Homebrew prompts for tap verification, run `brew trust mesamirh/moviebox-tui`.
 
 ### Windows
 
@@ -56,10 +62,14 @@ irm https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.ps1 | i
 
 ### Android (Termux)
 
-Termux:
+1. Install dependencies and run the installer:
 ```bash
 pkg update && pkg install -y curl tar termux-tools termux-am
 curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
+```
+
+2. Grant storage permission (required for video players and downloads):
+```bash
 termux-setup-storage
 ```
 
@@ -97,7 +107,7 @@ moviebox-tui
 ```
 
 - Type any title to search, press `Enter` to play.
-- Press `?` anytime for shortcuts, or type `/settings` for preferences.
+- Press `?` inside the TUI for shortcuts, or type `/settings` for preferences.
 
 ## Documentation
 

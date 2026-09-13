@@ -16,9 +16,10 @@ Homebrew (macOS):
 
 ```bash
 brew tap mesamirh/moviebox-tui https://github.com/mesamirh/MovieBox-Tui
-brew trust mesamirh/moviebox-tui
 brew install moviebox-tui
 ```
+
+*Note:* If Homebrew prompts for tap verification, run `brew trust mesamirh/moviebox-tui`.
 
 ---
 
@@ -34,11 +35,16 @@ irm https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.ps1 | i
 
 ## Android (Termux)
 
-Termux:
+1. Install dependencies and run the installer:
 
 ```bash
 pkg update && pkg install -y curl tar termux-tools termux-am
 curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.sh | bash
+```
+
+2. Grant storage permission (required for video players and downloads):
+
+```bash
 termux-setup-storage
 ```
 

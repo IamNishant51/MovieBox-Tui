@@ -1,8 +1,14 @@
+<div align="center">
+
 # Introduction
 
-Terminal interface to find, download, and stream movies, TV shows, and live TV using local media players.
+**Terminal interface to find, download, and stream movies, TV shows, and live TV using local media players.**
+
+[ English ](../README.md) • [ বাংলা ](../README_BN.md) • [ हिन्दी ](../README_HI.md) • [ Español ](../README_ES.md)
 
 [![Telegram](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@getfromme&style=flat&logo=true)](https://t.me/getfromme)
+
+</div>
 
 [moviebox-tui walkthrough.webm](https://github.com/user-attachments/assets/51802c09-abb1-46dd-bd04-d96a9cf836bb)
 
