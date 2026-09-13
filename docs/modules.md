@@ -63,6 +63,7 @@ src/
       hubcloud.rs    Mirror resolver: fetch drive pages, extract playable links.
       parser.rs      HTML parsing into typed CatalogItem/MediaDetails/Release.
     bdix/
+      common.rs      Shared BDIX resolution, audio language, and codec detection heuristics.
       circleftp/     BDIX CircleFTP provider (client + parser).
       dhakaflix/     BDIX DhakaFlix provider (client + parser).
     addons/          Community HTTP addons provider (client, aggregator, adapter, models).
