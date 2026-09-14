@@ -141,7 +141,3 @@ MovieBox-TUI contains zero telemetry, analytics, or user tracking. All search hi
 ## License
 
 Licensed under either [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
-
-## Disclaimer
-
-This project does not host or store any media. It is an independent client for playing publicly available streams. Users are responsible for complying with the laws of their country.
