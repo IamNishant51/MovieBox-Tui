@@ -3,15 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NISHANTFLIX — stream movies & series">
+    <meta name="referrer" content="no-referrer">
     <title>NISHANTFLIX</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.plyr.io">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <style>
         :root {
             --plyr-color-main: #e50914;
+            --bg: #141414;
+            --surface: #181818;
+            --ring: rgba(255,255,255,.7);
+            --ease: cubic-bezier(.21,.9,.35,1);
         }
+        body { font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; letter-spacing: .01em; }
+        h1, h2, h3 { letter-spacing: -.01em; }
+        :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; font-weight: 600; padding: .15rem .5rem; border-radius: .25rem; border: 1px solid #4b5563; color: #d1d5db; background: rgba(255,255,255,.04); }
+        .chip-green { color: #4ade80; border-color: rgba(74,222,128,.4); }
+        .chip-amber { color: #fbbf24; border-color: rgba(251,191,36,.4); }
+        .btn-touch { min-height: 44px; }
+        @media (max-width: 768px) {
+            .modal-sheet { align-items: flex-end !important; padding: 0 !important; }
+            .modal-sheet > div { border-radius: 1rem 1rem 0 0 !important; max-height: 94vh !important; width: 100% !important; }
+        }
+        .skeleton-shimmer { position: relative; overflow: hidden; background: #262626; }
+        .skeleton-shimmer::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent); animation: shimmer 1.6s infinite; }
+        @keyframes shimmer { to { transform: translateX(100%); } }
+        .suggest-panel { animation: fadeIn 0.15s ease-out; }
+        .menu-enter-active,.menu-leave-active,.modal-enter-active,.modal-leave-active { transition: opacity .18s var(--ease), transform .18s var(--ease); }
+        @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+        @media (max-width: 768px) { .suggest-panel { position: fixed; left: 1rem; right: 1rem; top: 64px; } }
         body { background-color: #141414; color: #fff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; overflow-x: hidden; }
         .netflix-red { color: #e50914; }
         .bg-netflix-red { background-color: #e50914; }
@@ -52,8 +81,8 @@
         <!-- Navbar -->
         <nav :class="['fixed w-full top-0 z-50 transition-all duration-300', scrolled ? 'bg-[#141414]' : 'bg-gradient-to-b from-black/80 to-transparent']">
             <div class="px-4 md:px-12 py-4 flex items-center justify-between">
-                <div class="flex items-center gap-8">
-                    <h1 class="text-3xl font-bold netflix-red cursor-pointer tracking-wider" @click="goHome">NISHANTFLIX</h1>
+                <div class="flex items-center gap-4 md:gap-8">
+                    <h1 class="text-xl md:text-3xl font-bold netflix-red cursor-pointer tracking-wider" @click="goHome">NISHANTFLIX</h1>
                     <div class="hidden md:flex gap-4 text-sm font-medium">
                         <span @click="setCategory('Trending')" :class="['cursor-pointer hover:text-gray-300 transition-colors', category === 'Trending' ? 'text-white font-bold' : 'text-gray-400']">Trending</span>
                         <span @click="setCategory('Movies')" :class="['cursor-pointer hover:text-gray-300 transition-colors', category === 'Movies' ? 'text-white font-bold' : 'text-gray-400']">Movies</span>
@@ -62,19 +91,56 @@
                         <span @click="setCategory('History')" :class="['cursor-pointer hover:text-gray-300 transition-colors', category === 'History' ? 'text-white font-bold' : 'text-gray-400']">History</span>
                     </div>
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
                     <div class="relative">
-                        <input v-model="searchQuery" @keyup.enter="search" type="text" placeholder="Titles, people, genres" :class="['bg-black/70 border border-gray-600 text-white px-4 py-1.5 focus:outline-none focus:border-white transition-all', searchActive ? 'w-64 opacity-100' : 'w-0 opacity-0 border-none px-0']" />
-                        <button @click="toggleSearch" class="absolute right-2 top-1.5 text-white hover:text-gray-300">
+                        <input v-model="searchQuery" @input="onSuggestInput" @focus="onSuggestFocus" @blur="hideSuggestDelayed" @keydown.down.prevent="moveSuggest(1)" @keydown.up.prevent="moveSuggest(-1)" @keydown.enter="onSuggestEnter" @keydown.esc="showSuggest = false" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-black/70 border border-gray-600 text-white px-4 py-1.5 focus:outline-none focus:border-white transition-all', searchActive ? 'w-64 md:w-72 opacity-100' : 'w-0 opacity-0 border-none px-0']" />
+                        <button @click="toggleSearch" aria-label="Search" class="absolute right-2 top-1.5 text-white hover:text-gray-300">
                             <i class="fas fa-search"></i>
                         </button>
+                        <div v-if="showSuggest && (suggestResults.length || suggestStrings.length)" class="suggest-panel absolute top-full mt-2 left-0 right-0 md:right-auto md:w-96 max-h-[60vh] overflow-y-auto bg-[#181818] border border-gray-700 rounded-lg shadow-2xl z-[60]">
+                            <div v-for="(item, idx) in suggestResults" :key="item.id.value + idx" @mousedown.prevent="pickSuggest(item)" :class="['flex items-center gap-3 p-2 cursor-pointer', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">
+                                <img v-if="item.poster_url" :src="item.poster_url" class="w-10 h-14 object-cover rounded flex-none bg-gray-800" loading="lazy" />
+                                <div v-else class="w-10 h-14 flex-none flex items-center justify-center bg-gray-800 rounded text-gray-500"><i class="fas fa-image"></i></div>
+                                <div class="min-w-0">
+                                    <div class="truncate text-sm font-bold">{{ item.title }}</div>
+                                    <div class="text-xs text-gray-400">{{ item.year || 'N/A' }} · {{ item.media_type === 'movie' ? 'Movie' : 'TV' }}</div>
+                                </div>
+                            </div>
+                            <div v-if="!suggestResults.length" v-for="(s, idx) in suggestStrings" :key="'s-'+idx" @mousedown.prevent="runStringSuggest(s)" :class="['px-4 py-2 text-sm cursor-pointer truncate', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">{{ s }}</div>
+                        </div>
+                    </div>
+                    <button @click="toggleDownloads" aria-label="Downloads" class="relative text-white hover:text-gray-300 p-1">
+                        <i class="fas fa-download text-lg"></i>
+                        <span v-if="dlActiveCount > 0" class="absolute -top-1 -right-2 bg-netflix-red text-white text-[.6rem] font-bold rounded-full min-w-[1.1rem] h-[1.1rem] flex items-center justify-center px-1">{{ dlActiveCount }}</span>
+                    </button>
+                    <div v-if="authLoading" class="w-8 h-8 rounded-full skeleton-shimmer" aria-hidden="true"></div>
+                    <span v-else-if="!loginRequired" class="text-[.65rem] font-bold tracking-widest text-green-400 border border-green-800 rounded px-2 py-1">DEV</span>
+                    <button v-else-if="!user" @click="showLoginModal = true" aria-label="Sign in" class="bg-white text-black text-sm font-bold px-4 py-1.5 rounded hover:bg-gray-200 transition">Sign In</button>
+                    <div v-else class="relative">
+                        <button @click="showUserMenu = !showUserMenu" aria-label="Account menu" class="rounded-full focus-visible:ring-2">
+                            <img v-if="user.picture" :src="user.picture" :alt="user.email" class="w-8 h-8 rounded-full object-cover ring-1 ring-white/20" />
+                            <span v-else class="w-8 h-8 rounded-full bg-netflix-red flex items-center justify-center font-bold">{{ (user.email || 'U')[0].toUpperCase() }}</span>
+                        </button>
+                        <div v-show="showUserMenu" class="absolute right-0 mt-2 w-56 modal-content rounded-md py-2 text-sm shadow-xl z-[70]">
+                            <p class="px-4 py-2 text-gray-400 truncate">{{ user.email }}</p>
+                            <button @click="logout" class="w-full text-left px-4 py-2 hover:bg-white/10">Sign out</button>
+                        </div>
                     </div>
                 </div>
             </div>
+            <div class="md:hidden flex gap-4 px-4 pb-2 text-sm font-medium overflow-x-auto scrollbar-hide">
+                <span @click="setCategory('Trending')" :class="['flex-none cursor-pointer', category === 'Trending' ? 'text-white font-bold' : 'text-gray-400']">Trending</span>
+                <span @click="setCategory('Movies')" :class="['flex-none cursor-pointer', category === 'Movies' ? 'text-white font-bold' : 'text-gray-400']">Movies</span>
+                <span @click="setCategory('Series')" :class="['flex-none cursor-pointer', category === 'Series' ? 'text-white font-bold' : 'text-gray-400']">TV Shows</span>
+                <span @click="setCategory('My List')" :class="['flex-none cursor-pointer', category === 'My List' ? 'text-white font-bold' : 'text-gray-400']">My List</span>
+                <span @click="setCategory('History')" :class="['flex-none cursor-pointer', category === 'History' ? 'text-white font-bold' : 'text-gray-400']">History</span>
+            </div>
         </nav>
 
+        <!-- Catalog is public; watching (play/VLC/download) + My List/History require login -->
+        <div>
         <!-- Hero Section -->
-        <div v-if="loading && !searchQuery && category === 'Trending' && currentPage === 1" class="relative h-[70vh] w-full bg-gray-900 animate-pulse">
+        <div v-if="loading && category === 'Trending'" class="relative h-[55vh] md:h-[70vh] w-full bg-gray-900 skeleton-shimmer">
             <div class="absolute inset-0 hero-gradient"></div>
             <div class="absolute bottom-1/4 left-4 md:left-12 w-full max-w-2xl z-10">
                 <div class="h-10 md:h-16 bg-gray-800 rounded mb-4 w-3/4"></div>
@@ -84,18 +150,24 @@
                 </div>
             </div>
         </div>
-        <div v-else-if="heroItems.length > 0 && !searchQuery && category === 'Trending' && currentPage === 1" class="relative h-[70vh] w-full group overflow-hidden">
+        <div v-else-if="heroItems.length > 0 && category === 'Trending'" class="relative h-[55vh] md:h-[70vh] w-full group overflow-hidden">
             <transition-group name="hero-fade" tag="div" class="absolute inset-0">
                 <div v-for="(item, index) in heroItems" :key="item.id.value" v-show="index === currentHeroIndex" class="absolute inset-0 w-full h-full">
                     <img :src="item.poster_url" class="absolute inset-0 w-full h-full object-cover object-top opacity-50 transition-opacity duration-700 group-hover:opacity-70" />
                     <div class="absolute inset-0 hero-gradient"></div>
-                    <div class="absolute bottom-1/4 left-4 md:left-12 max-w-2xl z-10">
-                        <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 shadow-sm drop-shadow-lg">{{ item.title }}</h1>
-                        <div class="flex gap-4 mb-4">
-                            <button @click="fetchDetails(item)" class="bg-white text-black px-6 md:px-8 py-2 md:py-3 rounded hover:bg-gray-200 font-bold flex items-center text-lg transition-all transform hover:scale-105 shadow-lg">
+                    <div class="absolute bottom-[12%] md:bottom-1/4 left-4 right-4 md:right-auto md:left-12 max-w-2xl z-10">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="netflix-red font-bold tracking-[.2em] text-xs md:text-sm">N</span>
+                            <span class="text-gray-300 text-xs md:text-sm font-semibold tracking-widest uppercase">{{ item.media_type === 'movie' ? 'Film' : 'Series' }}</span>
+                            <span v-if="item.season_count" class="chip">{{ item.season_count }} Season{{ item.season_count > 1 ? 's' : '' }}</span>
+                        </div>
+                        <h1 class="text-3xl md:text-6xl font-bold text-white mb-2 md:mb-4 drop-shadow-lg leading-tight">{{ item.title }}</h1>
+                        <p v-if="item.genre" class="text-xs md:text-sm text-gray-300 mb-3 truncate">{{ item.genre }}</p>
+                        <div class="flex gap-3 mb-4">
+                            <button @click="fetchDetails(item)" class="btn-touch bg-white text-black px-5 md:px-8 py-2 md:py-3 rounded hover:bg-gray-200 font-bold flex items-center text-base md:text-lg transition-all shadow-lg">
                                 <i class="fas fa-play mr-2"></i> Play
                             </button>
-                            <button @click="fetchDetails(item)" class="bg-gray-500/70 text-white px-6 md:px-8 py-2 md:py-3 rounded hover:bg-gray-500/90 font-bold flex items-center text-lg transition-all transform hover:scale-105 shadow-lg backdrop-blur-sm">
+                            <button @click="fetchDetails(item)" class="btn-touch bg-gray-500/70 text-white px-5 md:px-8 py-2 md:py-3 rounded hover:bg-gray-500/90 font-bold flex items-center text-base md:text-lg transition-all shadow-lg backdrop-blur-sm">
                                 <i class="fas fa-info-circle mr-2"></i> More Info
                             </button>
                         </div>
@@ -123,34 +195,43 @@
             </div>
             
             <div v-if="!loading">
+                <div v-if="gridError" class="text-center py-16 px-6 bg-[#181818] rounded-xl border border-gray-800">
+                    <i class="fas fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
+                    <h2 class="text-xl md:text-2xl font-bold mb-2">Something went wrong</h2>
+                    <p class="text-gray-400 text-sm mb-6">{{ gridError }}</p>
+                    <button @click="retryGrid" class="btn-touch bg-white text-black px-6 py-2 rounded font-bold hover:bg-gray-200">Try Again</button>
+                </div>
+                <div v-else>
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
-                    <h2 class="text-2xl font-bold">{{ searchQuery ? 'Search Results' : category }}</h2>
+                    <h2 class="text-xl md:text-2xl font-bold">{{ category }}</h2>
                     <div class="flex flex-wrap items-center gap-3" v-if="category !== 'History' && category !== 'My List'">
                         <select v-model="selectedProvider" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
                             <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
                         </select>
-                        <select v-if="!searchQuery" v-model="filterType" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
+                        <select v-model="filterType" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
                             <option value="">All Types</option>
                             <option value="movie">Movies</option>
                             <option value="series">TV Shows</option>
                         </select>
-                        <select v-if="!searchQuery" v-model="filterGenre" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white max-w-xs">
+                        <select v-model="filterGenre" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white max-w-xs">
                             <option value="">All Genres</option>
                             <option v-for="g in availableGenres" :key="g" :value="g">{{ g }}</option>
                         </select>
-                        <select v-if="!searchQuery" v-model="filterYear" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
+                        <select v-model="filterYear" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
                             <option value="">All Years</option>
                             <option v-for="y in availableYears" :key="y" :value="y">{{ y }}</option>
                         </select>
                     </div>
                 </div>
                 
-                <div v-if="paginatedResults.length === 0" class="text-gray-400 text-lg">
-                    No results found.
+                <div v-if="visibleResults.length === 0" class="text-center py-16 text-gray-400">
+                    <i class="fas fa-film text-4xl mb-4 text-gray-600"></i>
+                    <p class="text-lg font-semibold text-gray-300">{{ emptyStateTitle }}</p>
+                    <p class="text-sm mt-1">{{ emptyStateHint }}</p>
                 </div>
                 
                 <!-- Netflix style horizontal rows for Trending page -->
-                <div v-if="category === 'Trending' && !searchQuery" class="space-y-12">
+                <div v-if="category === 'Trending'" class="space-y-12">
                     <!-- Continue Watching Row -->
                     <div v-if="historyItemsMapped.length > 0">
                         <h2 class="text-2xl font-bold mb-4">Continue Watching</h2>
@@ -186,11 +267,14 @@
                         </div>
                     </div>
                     
-                    <!-- Trending Now Grid -->
-                    <div>
-                        <h2 class="text-2xl font-bold mb-4">Trending Now</h2>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4">
-                            <div v-for="item in paginatedResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
+                    <!-- Recommended For You Row -->
+                    <div v-if="recommendedItems.length > 0 || loadingRecs">
+                        <h2 class="text-2xl font-bold mb-4">Recommended For You</h2>
+                        <div v-if="loadingRecs && recommendedItems.length === 0" class="flex overflow-x-auto gap-4 pb-4">
+                            <div v-for="i in 6" :key="'rec-skel-'+i" class="flex-none w-40 sm:w-48 lg:w-56 aspect-[2/3] bg-gray-800 rounded-lg skeleton-shimmer"></div>
+                        </div>
+                        <div v-else class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
+                            <div v-for="item in recommendedItems" :key="'rec-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
                                     <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
@@ -205,18 +289,44 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Trending Now Grid (infinite) -->
+                    <div>
+                        <h2 class="text-xl md:text-2xl font-bold mb-4">Trending Now</h2>
+                        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                            <div v-for="item in visibleResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
+                                <div class="aspect-[2/3] w-full bg-gray-800">
+                                    <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                                    <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
+                                </div>
+                                <div class="absolute top-2 left-2 flex gap-1">
+                                    <span v-if="item.season_count" class="chip !text-[.6rem] bg-black/70">{{ item.season_count }}S</span>
+                                </div>
+                                <div class="absolute inset-0 flex flex-col justify-end p-2 md:p-3 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                                    <h3 class="font-bold text-xs md:text-base truncate drop-shadow-md">{{ item.title }}</h3>
+                                    <p class="text-[.65rem] md:text-xs text-green-500 font-semibold mt-1 flex justify-between drop-shadow-md">
+                                        <span>{{ item.year || 'N/A' }}</span>
+                                        <span class="uppercase text-gray-300 border border-gray-500 px-1 rounded">{{ item.media_type === 'movie' ? 'Movie' : 'TV' }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Grid for non-Trending categories -->
-                <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4">
-                    <div v-for="item in paginatedResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
+                <!-- Grid for non-Trending categories (infinite) -->
+                <div v-else class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                    <div v-for="item in visibleResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                         <div class="aspect-[2/3] w-full bg-gray-800">
                             <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
                             <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
                         </div>
+                        <div class="absolute top-2 left-2 flex gap-1">
+                            <span v-if="item.season_count" class="chip !text-[.6rem] bg-black/70">{{ item.season_count }}S</span>
+                        </div>
                         <div class="absolute inset-0 flex flex-col justify-end p-2 md:p-3 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                            <h3 class="font-bold text-sm md:text-base truncate drop-shadow-md">{{ item.title }}</h3>
-                            <p class="text-xs text-green-500 font-semibold mt-1 flex justify-between drop-shadow-md">
+                            <h3 class="font-bold text-xs md:text-base truncate drop-shadow-md">{{ item.title }}</h3>
+                            <p class="text-[.65rem] md:text-xs text-green-500 font-semibold mt-1 flex justify-between drop-shadow-md">
                                 <span>{{ item.year || 'N/A' }}</span>
                                 <span class="uppercase text-gray-300 border border-gray-500 px-1 rounded">{{ item.media_type === 'movie' ? 'Movie' : 'TV' }}</span>
                             </p>
@@ -226,19 +336,69 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Pagination -->
-                <div v-if="totalPages > 1 && (category === 'Trending' || category === 'Search' || category === 'Movies' || category === 'Series')" class="flex justify-center items-center mt-8 gap-4">
-                    <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="px-4 py-2 bg-[#222] rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
-                    <span>Page {{ currentPage }} of {{ totalPages }}</span>
-                    <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages && !hasMoreServerPages" class="px-4 py-2 bg-[#222] rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+
+                <!-- Infinite scroll sentinel + skeletons -->
+                <div ref="infiniteSentinel" class="h-4"></div>
+                <div v-if="loadingMore" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 mt-4">
+                    <div v-for="i in 12" :key="'inf-skel-'+i" class="aspect-[2/3] rounded-lg skeleton-shimmer"></div>
                 </div>
-                
-                <div v-if="loadingMore" class="flex justify-center mt-8">
-                    <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div>
+                <div v-if="!hasMoreServerPages && visibleResults.length > 0" class="text-center text-gray-600 text-xs mt-8">You're all caught up.</div>
                 </div>
             </div>
         </main>
+
+        <div v-if="toastMsg" :class="['fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded shadow-lg text-sm font-bold max-w-[90vw] text-center', toastIsError ? 'bg-red-600' : 'bg-green-600']">{{ toastMsg }}</div>
+
+        <!-- Downloads drawer -->
+        <div v-if="showDownloads" class="fixed inset-0 z-[220]" aria-label="Downloads">
+            <div class="absolute inset-0 bg-black/60" @click="toggleDownloads"></div>
+            <aside class="absolute right-0 top-0 bottom-0 w-full sm:w-[26rem] bg-[#181818] border-l border-gray-800 flex flex-col shadow-2xl">
+                <div class="flex items-center justify-between p-4 border-b border-gray-800">
+                    <h2 class="text-lg font-bold">Downloads <span v-if="dlJobs.length" class="text-gray-500 text-sm font-normal">({{ dlJobs.length }})</span></h2>
+                    <button @click="toggleDownloads" aria-label="Close downloads" class="w-9 h-9 rounded-full hover:bg-gray-700 flex items-center justify-center"><i class="fas fa-times"></i></button>
+                </div>
+                <div v-if="dlLoading && !dlJobs.length" class="p-4 space-y-3">
+                    <div v-for="i in 3" :key="'dl-skel-'+i" class="h-20 rounded skeleton-shimmer"></div>
+                </div>
+                <div v-else-if="!dlJobs.length" class="flex-1 flex flex-col items-center justify-center text-center p-8 text-gray-400">
+                    <i class="fas fa-download text-4xl mb-4 text-gray-600"></i>
+                    <p class="font-bold text-gray-300">No downloads yet</p>
+                    <p class="text-sm mt-1">Pick a quality in any title and hit Download — progress, speed and ETA show up here.</p>
+                </div>
+                <div v-else class="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div v-for="job in dlJobs" :key="job.id" class="p-3 bg-[#222] rounded-xl border border-gray-700">
+                        <div class="flex items-start justify-between gap-2 mb-1">
+                            <p class="font-bold text-sm truncate" :title="job.filename">{{ job.filename }}</p>
+                            <span :class="['chip !text-[.6rem] flex-none', job.status === 'completed' ? 'chip-green' : (job.status === 'failed' ? '!text-red-400 !border-red-900' : 'chip-amber')]">{{ dlStatusLabel(job) }}</span>
+                        </div>
+                        <div v-if="!isDlDone(job)" class="w-full h-1.5 bg-gray-700 rounded overflow-hidden mb-1.5">
+                            <div class="h-full bg-red-600 transition-all" :style="{ width: Math.min(100, job.progress || 0) + '%' }"></div>
+                        </div>
+                        <div v-else-if="job.status === 'completed'" class="w-full h-1.5 bg-green-900 rounded overflow-hidden mb-1.5">
+                            <div class="h-full bg-green-500" style="width: 100%"></div>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-2">{{ dlStatusText(job) }}</p>
+                        <div class="flex gap-2">
+                            <a v-if="job.status === 'completed'" :href="'/api/downloads/' + job.id + '/file'" :download="job.filename" class="btn-touch flex-1 bg-white text-black text-sm font-bold rounded px-3 py-1.5 text-center hover:bg-gray-200"><i class="fas fa-save mr-1"></i> Save</a>
+                            <button v-if="isDlActive(job)" @click="cancelDownload(job)" class="btn-touch flex-1 bg-gray-700 text-sm font-bold rounded px-3 py-1.5 hover:bg-gray-600">Cancel</button>
+                            <button v-if="job.status === 'failed' || job.status === 'cancelled'" @click="retryDownload(job)" class="btn-touch flex-1 bg-gray-700 text-sm font-bold rounded px-3 py-1.5 hover:bg-gray-600"><i class="fas fa-rotate-right mr-1"></i> Retry</button>
+                            <button v-if="isDlDone(job)" @click="dismissDownload(job)" class="btn-touch bg-transparent text-gray-400 text-sm rounded px-3 py-1.5 hover:text-white">Dismiss</button>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div v-if="showLoginModal" role="dialog" aria-modal="true" aria-label="Sign in" class="fixed inset-0 z-[250] modal-overlay flex items-center justify-center p-4" @click.self="showLoginModal = false">
+            <div class="modal-content rounded-lg p-8 max-w-sm w-full text-center">
+                <h2 class="text-2xl font-bold mb-2">Sign in to continue</h2>
+                <p class="text-gray-400 text-sm mb-6">Your List &amp; History sync to your Google account.</p>
+                <a href="/api/auth/login" class="flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold rounded px-4 py-2.5 hover:bg-gray-100 transition">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.3H12v4.5h6.5c-.1 1.1-.8 2.7-2.4 3.8l-.1.1 3.5 2.7.2.1c2.2-2 3.8-5 3.8-8.9z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.8-2.9c-1 .7-2.4 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5l-.1.1-3.7 2.9v.1C3.4 21.5 7.4 24 12 24z"/><path fill="#FBBC05" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4l-.1-.1-3.6-2.8-.1.1C.5 8.7 0 10.2 0 12s.5 3.3 1.4 4.7l3.8-2.3z"/><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.4 0 3.4 2.5 1.4 6.8l3.8 2.9c1-2.9 3.7-5 6.8-5z"/></svg>
+                    Sign in with Google</a>
+                <button @click="showLoginModal = false" class="mt-4 text-gray-400 text-sm hover:text-white">Not now</button>
+            </div>
+        </div>
 
         <!-- Details Modal -->
         <!-- VLC Options Modal -->
@@ -270,123 +430,170 @@
         </div>
 
         <!-- Details Modal -->
-        <div v-if="showDetailsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10 modal-overlay overflow-y-auto backdrop-blur-md transition-opacity duration-300" @click.self="closeDetails">
-            <div class="modal-content w-full max-w-4xl rounded-xl overflow-hidden relative my-auto text-white flex flex-col shadow-2xl">
+        <div v-if="showDetailsModal" class="modal-sheet fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-10 modal-overlay overflow-y-auto backdrop-blur-md transition-opacity duration-300" @click.self="closeDetails">
+            <div class="modal-content w-full max-w-4xl rounded-none md:rounded-xl overflow-hidden relative my-auto text-white flex flex-col shadow-2xl max-h-[94vh] md:max-h-none overflow-y-auto">
                 <button @click="closeDetails" class="absolute top-4 right-4 z-20 bg-black/60 backdrop-blur-md rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-700 transition-all shadow-lg border border-gray-600 hover:scale-110">
                     <i class="fas fa-times text-xl"></i>
                 </button>
 
                 <!-- Skeleton Modal -->
-                <div v-if="loadingDetails" class="w-full animate-pulse">
-                    <div class="relative h-[40vh] md:h-[50vh] w-full bg-gray-900">
-                        <div class="absolute bottom-0 left-0 p-8 w-full">
-                            <div class="h-10 md:h-14 bg-gray-800 rounded w-1/2 mb-4"></div>
-                            <div class="h-12 bg-gray-800 rounded w-32"></div>
+                <div v-if="loadingDetails" class="w-full">
+                    <div class="relative h-[32vh] md:h-[50vh] w-full bg-gray-900 skeleton-shimmer"></div>
+                    <div class="p-4 md:p-8 grid md:grid-cols-3 gap-6 md:gap-8 bg-[#181818]">
+                        <div class="md:col-span-2 space-y-3">
+                            <div class="h-5 rounded w-2/3 skeleton-shimmer"></div>
+                            <div class="h-4 rounded w-full skeleton-shimmer"></div>
+                            <div class="h-4 rounded w-5/6 skeleton-shimmer"></div>
+                            <div class="h-4 rounded w-4/6 skeleton-shimmer"></div>
+                            <div class="h-12 rounded w-full skeleton-shimmer"></div>
                         </div>
-                    </div>
-                    <div class="p-8 grid md:grid-cols-3 gap-8 bg-[#181818]">
-                        <div class="md:col-span-2 space-y-4">
-                            <div class="flex gap-3 mb-4">
-                                <div class="h-6 bg-gray-800 rounded w-16"></div>
-                                <div class="h-6 bg-gray-800 rounded w-12"></div>
-                            </div>
-                            <div class="h-6 bg-gray-800 rounded w-3/4 mb-4"></div>
-                            <div class="space-y-2">
-                                <div class="h-4 bg-gray-800 rounded w-full"></div>
-                                <div class="h-4 bg-gray-800 rounded w-5/6"></div>
-                                <div class="h-4 bg-gray-800 rounded w-4/6"></div>
-                            </div>
-                        </div>
-                        <div class="space-y-4">
-                            <div class="h-4 bg-gray-800 rounded w-full"></div>
-                            <div class="h-4 bg-gray-800 rounded w-5/6"></div>
+                        <div class="space-y-3">
+                            <div class="h-4 rounded w-full skeleton-shimmer"></div>
+                            <div class="h-4 rounded w-5/6 skeleton-shimmer"></div>
                         </div>
                     </div>
                 </div>
-                
+
+                <!-- Details error screen -->
+                <div v-else-if="detailsError" class="w-full p-8 md:p-12 text-center">
+                    <i class="fas fa-circle-exclamation text-5xl text-red-500 mb-4"></i>
+                    <h2 class="text-2xl font-bold mb-2">Couldn't load this title</h2>
+                    <p class="text-gray-400 text-sm mb-2">{{ detailsError }}</p>
+                    <p class="text-gray-500 text-xs mb-6">It may have been removed or the provider is temporarily down.</p>
+                    <div class="flex justify-center gap-3">
+                        <button @click="retryDetails" class="btn-touch bg-white text-black px-6 py-2 rounded font-bold hover:bg-gray-200">Retry</button>
+                        <button @click="closeDetails" class="btn-touch bg-gray-700 px-6 py-2 rounded font-bold hover:bg-gray-600">Close</button>
+                    </div>
+                </div>
+
                 <!-- Loaded Content -->
                 <div v-else-if="selectedItem" class="w-full flex flex-col animate-[fadeIn_0.5s_ease-out]">
                     <!-- Modal Hero -->
-                <div class="relative h-[40vh] md:h-[50vh] w-full bg-[#111]">
-                    <img :src="selectedItem.poster_url || 'https://via.placeholder.com/1200x600/111/fff'" class="w-full h-full object-cover object-top opacity-60" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/40 to-transparent"></div>
-                    <div class="absolute bottom-0 left-0 p-8 w-full">
-                        <h2 class="text-3xl md:text-5xl font-bold mb-4 shadow-sm drop-shadow-xl">{{ selectedItem.title }}</h2>
-                        <div class="flex gap-4 flex-wrap" v-if="!streams.length && !browserPlayUrl">
-                            <button v-if="selectedItem.media_type === 'movie'" @click="fetchStreams(selectedItem.id.value, selectedItem.id.provider, 0, 0)" class="bg-white text-black px-8 py-2 rounded hover:bg-gray-200 font-bold flex items-center text-lg transition-colors">
+                <div class="relative h-[32vh] md:h-[50vh] w-full bg-[#111]">
+                    <img :src="selectedItem.poster_url || 'https://via.placeholder.com/1200x600/111/fff'" class="w-full h-full object-cover object-top opacity-60" loading="lazy" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/50 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-4 md:p-8 w-full">
+                        <div class="flex items-center gap-2 mb-1 md:mb-2">
+                            <span class="netflix-red font-bold tracking-[.2em] text-xs">N</span>
+                            <span class="text-gray-300 text-[.7rem] md:text-xs font-semibold tracking-widest uppercase">{{ selectedItem.media_type === 'movie' ? 'Film' : 'Series' }}</span>
+                        </div>
+                        <h2 class="text-2xl md:text-5xl font-bold mb-3 md:mb-4 drop-shadow-xl leading-tight">{{ selectedItem.title }}</h2>
+                        <div class="flex gap-2 md:gap-4 flex-wrap" v-if="!streams.length && !browserPlayUrl">
+                            <button v-if="selectedItem.media_type === 'movie'" @click="fetchStreams(selectedItem.id.value, selectedItem.id.provider, 0, 0)" class="btn-touch bg-white text-black px-6 md:px-8 py-2 rounded hover:bg-gray-200 font-bold flex items-center text-base md:text-lg transition-colors">
                                 <i class="fas fa-play mr-2"></i> Play
                             </button>
-                            <button @click="toggleFavorite" class="bg-gray-800/80 text-white px-6 py-2 rounded border border-gray-500 hover:bg-gray-700 font-bold flex items-center text-lg transition-colors backdrop-blur">
-                                <i :class="['mr-2', isFavorite ? 'fas fa-check text-green-500' : 'fas fa-plus']"></i> {{ isFavorite ? 'My List' : 'My List' }}
+                            <button @click="toggleFavorite" class="btn-touch bg-gray-800/80 text-white px-5 md:px-6 py-2 rounded border border-gray-500 hover:bg-gray-700 font-bold flex items-center text-base md:text-lg transition-colors backdrop-blur">
+                                <i :class="['mr-2', isFavorite ? 'fas fa-check text-green-500' : 'fas fa-plus']"></i> My List
                             </button>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Modal Info -->
-                <div class="p-8 grid md:grid-cols-3 gap-8">
+                <div class="p-4 md:p-8 grid md:grid-cols-3 gap-6 md:gap-8">
                     <div class="md:col-span-2 space-y-4">
-                        <div class="flex items-center gap-3 text-sm">
-                            <span class="text-green-500 font-bold">{{ selectedItem.imdb_rating ? `IMDB: ${selectedItem.imdb_rating}` : 'New' }}</span>
+                        <div class="flex items-center gap-2 md:gap-3 text-xs md:text-sm flex-wrap">
+                            <span class="text-green-500 font-bold">{{ selectedItem.imdb_rating ? matchPercent(selectedItem.imdb_rating) + '% Match' : 'New' }}</span>
+                            <span v-if="selectedItem.imdb_rating" class="text-gray-400">IMDb {{ selectedItem.imdb_rating }}</span>
                             <span>{{ selectedItem.year }}</span>
-                            <span class="border border-gray-600 px-1 rounded text-gray-300" v-if="selectedItem.duration">{{ selectedItem.duration }}</span>
-                            <span class="border border-gray-600 px-1 rounded text-gray-300 uppercase">{{ selectedItem.media_type }}</span>
+                            <span class="chip" v-if="selectedItem.duration">{{ selectedItem.duration }}</span>
+                            <span class="chip uppercase">{{ selectedItem.media_type }}</span>
+                            <span class="chip" v-if="selectedItem.media_type === 'series' && selectedItem.seasons">{{ selectedItem.seasons.length }} Season{{ selectedItem.seasons.length > 1 ? 's' : '' }}</span>
+                            <span class="chip chip-amber" v-if="subtitleCount > 0">{{ subtitleCount }} CC</span>
                         </div>
-                        <p class="text-lg italic text-gray-400" v-if="selectedItem.tagline">{{ selectedItem.tagline }}</p>
-                        <p class="text-gray-200 leading-relaxed text-base">{{ selectedItem.description || 'No description available.' }}</p>
-                        
+                        <div v-if="selectedItem.genres && selectedItem.genres.length > 0" class="flex flex-wrap gap-1.5">
+                            <span v-for="g in selectedItem.genres" :key="g" class="chip">{{ g }}</span>
+                        </div>
+                        <p class="text-base md:text-lg italic text-gray-400" v-if="selectedItem.tagline">{{ selectedItem.tagline }}</p>
+                        <p class="text-gray-200 leading-relaxed text-sm md:text-base">{{ selectedItem.description || 'No description available.' }}</p>
+
+                        <!-- Dub / audio selector (uses MediaDetails.dubs) -->
+                        <div v-if="selectedItem.dubs && selectedItem.dubs.length > 1" class="mt-2">
+                            <h3 class="text-sm font-bold text-gray-300 mb-2">Audio versions</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button v-for="(d, di) in selectedItem.dubs" :key="di" @click="switchDub(d)" :class="['btn-touch chip !text-xs !py-2 !px-3', isActiveDub(d) ? '!bg-white !text-black !border-white' : 'hover:border-gray-300']">
+                                    <i class="fas fa-language mr-1"></i>{{ d.label || d.language || ('Version ' + (di + 1)) }}
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- TV Shows Seasons -->
                         <div v-if="selectedItem.media_type === 'series' && !browserPlayUrl && !streams.length">
-                            <div class="mt-8 flex justify-between items-center mb-4">
-                                <h3 class="text-xl font-bold">Episodes</h3>
-                                <select v-model="activeSeason" class="bg-[#222] border border-gray-600 text-white p-2 rounded outline-none focus:border-white">
-                                    <option v-for="s in selectedItem.seasons" :key="s.number" :value="s">Season {{ s.number }}</option>
-                                </select>
+                            <div class="mt-6 md:mt-8 mb-3 md:mb-4">
+                                <div class="flex justify-between items-center mb-3">
+                                    <h3 class="text-lg md:text-xl font-bold">Episodes <span class="text-gray-500 text-sm font-normal">{{ selectedItem.title }}</span></h3>
+                                </div>
+                                <div class="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                                    <button v-for="s in selectedItem.seasons" :key="s.number" @click="activeSeason = s" :class="['btn-touch flex-none px-4 py-1.5 rounded border text-sm font-bold', activeSeason && activeSeason.number === s.number ? 'bg-white text-black border-white' : 'border-gray-600 text-gray-300 hover:border-gray-300']">Season {{ s.number }}</button>
+                                </div>
                             </div>
-                            
-                            <div v-if="activeSeason" class="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-                                <div v-for="ep in activeSeason.episodes" :key="ep.number" @click="fetchStreams(selectedItem.id.value, selectedItem.id.provider, activeSeason.number, ep.number)" class="flex gap-4 p-4 bg-[#222] rounded hover:bg-[#333] cursor-pointer transition-colors border-b border-gray-800 group">
-                                    <h4 class="text-2xl font-bold text-gray-500 w-8 group-hover:text-white transition-colors">{{ ep.number }}</h4>
-                                    <div class="flex-1">
-                                        <div class="flex justify-between items-center">
-                                            <h5 class="font-bold">{{ ep.title || `Episode ${ep.number}` }}</h5>
+
+                            <div v-if="activeSeason" class="space-y-2 md:space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+                                <div v-for="ep in activeSeason.episodes" :key="ep.number" @click="fetchStreams(selectedItem.id.value, selectedItem.id.provider, activeSeason.number, ep.number)" class="flex gap-3 md:gap-4 p-3 md:p-4 bg-[#222] rounded hover:bg-[#333] cursor-pointer transition-colors border border-transparent hover:border-gray-600 group">
+                                    <h4 class="text-xl md:text-2xl font-bold text-gray-500 w-7 flex-none group-hover:text-white transition-colors">{{ ep.number }}</h4>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex justify-between items-center gap-2">
+                                            <h5 class="font-bold text-sm md:text-base truncate">{{ ep.title || ('S' + activeSeason.number + ' E' + ep.number) }}</h5>
+                                            <span class="chip !text-[.6rem] flex-none hidden sm:inline-flex">S{{ activeSeason.number }}:E{{ ep.number }}</span>
+                                        </div>
+                                        <div v-if="episodeProgress(activeSeason.number, ep.number) > 0" class="mt-2 w-full h-1 bg-gray-600 rounded overflow-hidden">
+                                            <div class="h-full bg-red-600" :style="{ width: episodeProgress(activeSeason.number, ep.number) + '%' }"></div>
                                         </div>
                                     </div>
-                                    <div class="flex-shrink-0 mt-1">
-                                        <i class="fas fa-play text-gray-400 group-hover:text-white transition-colors"></i>
+                                    <div class="flex-shrink-0 mt-1 w-11 h-11 rounded-full border border-gray-500 hidden sm:flex items-center justify-center group-hover:bg-white group-hover:text-black group-hover:border-white transition-colors">
+                                        <i class="fas fa-play text-sm"></i>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Streams List -->
-                        <div v-if="loadingStreams" class="mt-8 animate-pulse">
-                            <h3 class="text-xl font-bold mb-4">Fetching Streams...</h3>
+                        <div v-if="loadingStreams" class="mt-6 md:mt-8">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">Fetching Streams...</h3>
                             <div class="space-y-3">
-                                <div v-for="i in 3" :key="i" class="h-16 bg-gray-800 rounded w-full"></div>
+                                <div v-for="i in 3" :key="i" class="h-20 rounded w-full skeleton-shimmer"></div>
                             </div>
                         </div>
-                        <div v-if="streams.length > 0 && !browserPlayUrl && !loadingStreams" class="mt-8 animate-[fadeIn_0.5s_ease-out]">
+                        <div v-else-if="streamsError" class="mt-6 md:mt-8 text-center py-8 px-4 bg-[#222] rounded-xl border border-gray-700">
+                            <i class="fas fa-satellite-dish text-3xl text-gray-500 mb-3"></i>
+                            <p class="font-bold mb-1">No playable sources</p>
+                            <p class="text-gray-400 text-sm mb-4">{{ streamsError }}</p>
+                            <button @click="retryStreams" class="btn-touch bg-white text-black px-6 py-2 rounded font-bold text-sm hover:bg-gray-200">Retry</button>
+                        </div>
+                        <div v-if="streams.length > 0 && !browserPlayUrl && !loadingStreams" class="mt-6 md:mt-8 animate-[fadeIn_0.5s_ease-out]">
                             <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-xl font-bold">Available Streams</h3>
-                                <button @click="streams = []" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i> Back</button>
+                                <h3 class="text-lg md:text-xl font-bold">Choose quality <span class="text-gray-500 text-sm font-normal">({{ streams.length }})</span></h3>
+                                <button @click="streams = []; streamsError = null" class="text-gray-400 hover:text-white text-sm"><i class="fas fa-arrow-left mr-1"></i> Episodes</button>
                             </div>
-                            <div class="space-y-3 max-h-[40vh] overflow-y-auto pr-2">
-                                <div v-for="(stream, idx) in streams" :key="idx" class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-[#222] rounded border border-gray-700 gap-4 hover:border-gray-500 transition-all hover:scale-[1.02]">
-                                    <div>
-                                        <span class="font-bold text-white">{{ stream.quality || 'Auto' }}</span>
-                                        <span class="text-sm text-gray-400 ml-2">({{ stream.mirrors[0]?.label || stream.provider }})</span>
+                            <div class="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+                                <div v-for="(stream, idx) in streams" :key="idx" class="p-3 md:p-4 bg-[#222] rounded-xl border border-gray-700 hover:border-gray-400 transition-all">
+                                    <div class="flex items-start justify-between gap-2 mb-2">
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <span class="font-bold text-white text-sm md:text-base">{{ stream.quality || 'Auto' }}</span>
+                                                <span v-if="stream.codec" class="chip !text-[.6rem]">{{ stream.codec }}</span>
+                                                <span v-if="stream.size_bytes" class="chip !text-[.6rem]">{{ formatBytes(stream.size_bytes) }}</span>
+                                                <span v-if="stream.language" class="chip !text-[.6rem]">{{ stream.language }}</span>
+                                                <span v-if="stream.season || stream.episode" class="chip !text-[.6rem]">S{{ stream.season }}:E{{ stream.episode }}</span>
+                                            </div>
+                                            <p class="text-xs text-gray-400 mt-1 truncate" :title="stream.filename">{{ stream.filename || (stream.mirrors[0]?.label || stream.provider) }}</p>
+                                            <p class="text-[.65rem] text-gray-500 mt-0.5">{{ stream.mirrors ? stream.mirrors.length : 1 }} source{{ (stream.mirrors ? stream.mirrors.length : 1) > 1 ? 's' : '' }} · {{ stream.mirrors && stream.mirrors[0] ? stream.mirrors[0].label || stream.provider : stream.provider }}</p>
+                                        </div>
                                     </div>
-                                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                                        <button @click="playInBrowser(stream, stream.mirrors[0])" class="flex-1 sm:flex-none bg-white text-black hover:bg-gray-200 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md transform hover:scale-105">
+                                    <div v-if="stream.mirrors && stream.mirrors.length > 1" class="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2 mb-1">
+                                        <button v-for="(m, mi) in stream.mirrors" :key="mi" @click="selectedMirror[idx] = mi" :class="['btn-touch flex-none chip !text-[.65rem] !py-1.5', (selectedMirror[idx] || 0) === mi ? '!bg-white !text-black !border-white' : 'hover:border-gray-300']">{{ m.label || ('Source ' + (mi + 1)) }}</button>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button @click="playInBrowser(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-white text-black hover:bg-gray-200 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
                                             <i class="fas fa-play mr-1"></i> Play
                                         </button>
-                                        <button @click="openVlcModal(stream, stream.mirrors[0])" class="flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md transform hover:scale-105">
-                                            <i class="fas fa-desktop mr-1"></i> App
+                                        <button @click="openVlcModal(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
+                                            <i class="fas fa-desktop mr-1"></i> VLC
                                         </button>
-                                        <a :href="getProxyUrl(stream.mirrors[0])" target="_blank" class="flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md transform hover:scale-105">
-                                            <i class="fas fa-download mr-1"></i> URL
-                                        </a>
+                                        <button @click="downloadStream(stream, activeMirror(stream, idx), idx)" :disabled="downloadingIdx === idx" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md disabled:opacity-50 disabled:cursor-wait">
+                                            <i :class="['mr-1', downloadingIdx === idx ? 'fas fa-spinner fa-spin' : 'fas fa-download']"></i>
+                                            {{ downloadingIdx === idx ? 'Saving...' : 'Download' }}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -394,32 +601,46 @@
 
                         <!-- Web Player -->
                         <div v-if="browserPlayUrl" class="mt-4">
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-xl font-bold">Now Playing</h3>
-                                <button @click="closePlayer" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i> Close Player</button>
+                            <div v-if="playerError" class="text-center py-8 px-4 bg-[#222] rounded-xl border border-red-900 mb-3">
+                                <i class="fas fa-circle-exclamation text-3xl text-red-500 mb-2"></i>
+                                <p class="font-bold text-sm mb-1">Playback failed</p>
+                                <p class="text-gray-400 text-xs mb-3">{{ playerError }}</p>
+                                <button @click="retryPlayback" class="btn-touch bg-white text-black px-5 py-2 rounded font-bold text-sm">Retry</button>
                             </div>
-                            <video id="web-video" crossorigin playsinline class="w-full rounded-lg bg-black shadow-2xl aspect-video"></video>
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg md:text-xl font-bold">Now Playing</h3>
+                                <button @click="closePlayer" class="text-gray-400 hover:text-white text-sm"><i class="fas fa-times mr-1"></i> Close</button>
+                            </div>
+                            <video id="web-video" crossorigin playsinline playsinline webkit-playsinline preload="metadata" class="w-full rounded-lg bg-black shadow-2xl aspect-video"></video>
                         </div>
                     </div>
-                    
-                    <div class="text-sm space-y-4 text-gray-400">
+
+                    <div class="text-xs md:text-sm space-y-3 text-gray-400">
                         <div v-if="selectedItem.stars">
-                            <span class="text-gray-200">Cast:</span> {{ selectedItem.stars }}
+                            <span class="text-gray-500">Cast:</span> <span class="text-gray-200">{{ selectedItem.stars }}</span>
                         </div>
                         <div v-if="selectedItem.director">
-                            <span class="text-gray-200">Director:</span> {{ selectedItem.director }}
+                            <span class="text-gray-500">Director:</span> <span class="text-gray-200">{{ selectedItem.director }}</span>
+                        </div>
+                        <div v-if="selectedItem.prints">
+                            <span class="text-gray-500">Prints:</span> <span class="text-gray-200">{{ selectedItem.prints }}</span>
+                        </div>
+                        <div v-if="selectedItem.audios">
+                            <span class="text-gray-500">Audios:</span> <span class="text-gray-200">{{ selectedItem.audios }}</span>
                         </div>
                         <div v-if="selectedItem.genres && selectedItem.genres.length > 0">
-                            <span class="text-gray-200">Genres:</span> {{ selectedItem.genres.join(', ') }}
+                            <span class="text-gray-500">Genres:</span> <span class="text-gray-200">{{ selectedItem.genres.join(', ') }}</span>
                         </div>
+                        <div class="pt-1 text-[.65rem] md:text-xs text-gray-600">Provider: {{ selectedItem.id ? selectedItem.id.provider : '' }}</div>
                     </div>
                 </div>
                 </div> <!-- End Loaded Content -->
             </div>
         </div>
+        </div><!-- /v-if="user" catalog gate -->
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script>
         new Vue({
@@ -464,7 +685,38 @@
                     { id: 'fourkhdhub', name: '4KHDHub' },
                     { id: 'bdix_circleftp', name: 'CircleFTP (BDIX)' },
                     { id: 'bdix_dhakaflix', name: 'DhakaFlix (BDIX)' }
-                ]
+                ],
+                suggestResults: [],
+                suggestStrings: [],
+                showSuggest: false,
+                suggestIndex: -1,
+                suggestTimer: null,
+                suggestReqId: 0,
+                recommendedItems: [],
+                loadingRecs: false,
+                downloadingIdx: null,
+                toastMsg: null,
+                toastIsError: false,
+                user: null,
+                authLoading: true,
+                loginRequired: false,
+                dlJobs: [],
+                showDownloads: false,
+                dlPollTimer: null,
+                dlLoading: false,
+                showLoginModal: false,
+                showUserMenu: false,
+                detailsError: null,
+                streamsError: null,
+                gridError: null,
+                playerError: null,
+                subtitleCount: 0,
+                selectedMirror: {},
+                lastStreamsKey: null,
+                lastPlayback: null,
+                pendingDetailsItem: null,
+                visibleCount: 30,
+                infiniteObs: null
             },
             computed: {
                 historyItemsMapped() {
@@ -489,18 +741,16 @@
                 },
                 filteredResults() {
                     let res = this.allResults;
-                    if (!this.searchQuery && this.category !== 'Search') {
-                        if (this.category === 'Movies' || this.filterType === 'movie') {
-                            res = res.filter(item => item.media_type === 'movie');
-                        } else if (this.category === 'Series' || this.filterType === 'series') {
-                            res = res.filter(item => item.media_type === 'series');
-                        }
-                        if (this.category === 'History') {
-                            res = this.historyItemsMapped;
-                        }
-                        if (this.category === 'My List') {
-                            res = this.favoriteItemsMapped;
-                        }
+                    if (this.category === 'Movies' || this.filterType === 'movie') {
+                        res = res.filter(item => item.media_type === 'movie');
+                    } else if (this.category === 'Series' || this.filterType === 'series') {
+                        res = res.filter(item => item.media_type === 'series');
+                    }
+                    if (this.category === 'History') {
+                        res = this.historyItemsMapped;
+                    }
+                    if (this.category === 'My List') {
+                        res = this.favoriteItemsMapped;
                     }
                     if (this.filterYear) {
                         res = res.filter(item => item.year === this.filterYear);
@@ -510,13 +760,22 @@
                     }
                     return res;
                 },
-                totalPages() {
-                    return Math.max(1, Math.ceil(this.filteredResults.length / this.itemsPerPage));
+                visibleResults() {
+                    return this.filteredResults.slice(0, this.visibleCount);
                 },
-                paginatedResults() {
-                    const start = (this.currentPage - 1) * this.itemsPerPage;
-                    const end = start + this.itemsPerPage;
-                    return this.filteredResults.slice(start, end);
+                dlActiveCount() {
+                    return this.dlJobs.filter(j => ['queued', 'downloading', 'merging'].includes(j.status)).length;
+                },
+                emptyStateTitle() {
+                    if (this.category === 'My List') return this.user ? 'Your list is empty' : 'Sign in to see your list';
+                    if (this.category === 'History') return this.user ? 'No watch history yet' : 'Sign in to see history';
+                    return 'No results found';
+                },
+                emptyStateHint() {
+                    if ((this.category === 'My List' || this.category === 'History') && !this.user) return 'Sign in with Google to sync across devices.';
+                    if (this.category === 'My List') return 'Tap + My List on any title to save it here.';
+                    if (this.category === 'History') return 'Titles you play will appear here to resume.';
+                    return 'Try another provider or clear filters.';
                 },
                 heroItems() {
                     return this.allResults.slice(0, 5);
@@ -546,18 +805,28 @@
             },
             mounted() {
                 this.fetchHomepage();
-                this.fetchHistory();
-                this.fetchFavorites();
-                window.addEventListener('scroll', this.handleScroll);
+                this.fetchRecommendations();
+                this.fetchDlJobs(true).then(() => { if (this.dlActiveCount > 0) this.ensureDlPolling(); });
+                this.fetchMe().then(() => {
+                    if (!this.user) return;
+                    this.fetchHistory();
+                    this.fetchFavorites();
+                    this.fetchRecommendations();
+                });
+                window.addEventListener('scroll', this.handleScroll, { passive: true });
+                window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { this.showUserMenu = false; } });
                 this.startHeroInterval();
+                this.setupInfinite();
             },
             beforeDestroy() {
                 window.removeEventListener('scroll', this.handleScroll);
                 this.stopHeroInterval();
+                this.stopDlPolling();
+                if (this.infiniteObs) this.infiniteObs.disconnect();
             },
             watch: {
                 category() {
-                    this.currentPage = 1;
+                    this.visibleCount = 30;
                     this.filterYear = '';
                     this.filterType = '';
                     this.filterGenre = '';
@@ -567,14 +836,101 @@
                 },
                 selectedProvider() {
                     this.currentPage = 1;
-                    if (this.searchQuery) {
-                        this.search(false);
-                    } else {
-                        this.fetchHomepage(false);
-                    }
+                    this.fetchHomepage(false);
+                    if ((this.searchQuery || '').trim().length >= 2) this.onSuggestInput();
                 }
             },
             methods: {
+                requireLogin() {
+                    if (!this.loginRequired) return true;
+                    if (this.user) return true;
+                    this.showLoginModal = true;
+                    return false;
+                },
+                authFailed(detail) {
+                    // Production: session expired/invalid -> force Google login.
+                    // Development: a 401 means the backend is stale (old binary
+                    // still enforcing auth) -> NEVER show Google login; tell the
+                    // user to restart the server instead.
+                    if (this.loginRequired) {
+                        this.user = null;
+                        this.showLoginModal = true;
+                    } else {
+                        this.showToast(detail || 'Server blocked the request — restart it with: cargo run --bin server', true);
+                    }
+                },
+                apiErrorMessage(res, fallback) {
+                    return res.text().then(t => {
+                        try { const j = JSON.parse(t); return j.hint || j.error || fallback; }
+                        catch (e) { return t || fallback; }
+                    }).catch(() => fallback);
+                },
+                matchPercent(rating) {
+                    const r = parseFloat(rating);
+                    if (isNaN(r)) return null;
+                    return Math.round((r / 10) * 100);
+                },
+                formatBytes(n) {
+                    if (!n || n <= 0) return '';
+                    const u = ['B', 'KB', 'MB', 'GB'];
+                    let i = 0; let v = n;
+                    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+                    return (v >= 100 ? Math.round(v) : v.toFixed(1)) + u[i];
+                },
+                activeMirror(stream, idx) {
+                    if (!stream || !stream.mirrors) return null;
+                    return stream.mirrors[this.selectedMirror[idx] || 0] || stream.mirrors[0];
+                },
+                isActiveDub(d) {
+                    return this.selectedItem && this.selectedItem._activeDubId && d.subject_id && this.selectedItem._activeDubId === d.subject_id;
+                },
+                async switchDub(d) {
+                    if (!d || !d.subject_id || !this.selectedItem) return;
+                    const provider = this.selectedItem.id.provider;
+                    this.selectedItem._activeDubId = d.subject_id;
+                    await this.fetchDetails({ id: { value: d.subject_id, provider }, title: d.label || d.language || this.selectedItem.title });
+                },
+                episodeProgress(season, episode) {
+                    if (!this.selectedItem) return 0;
+                    const h = this.historyItems.find(x => x.subject_id === this.selectedItem.id.value && x.provider === this.selectedItem.id.provider && x.season === season && x.episode === episode);
+                    if (!h || !h.duration_seconds) return 0;
+                    return Math.min(100, Math.round((h.progress_seconds / h.duration_seconds) * 100));
+                },
+                setupInfinite() {
+                    this.$nextTick(() => {
+                        const el = this.$refs.infiniteSentinel;
+                        if (!el || !('IntersectionObserver' in window)) return;
+                        if (this.infiniteObs) this.infiniteObs.disconnect();
+                        this.infiniteObs = new IntersectionObserver((entries) => {
+                            if (entries.some(e => e.isIntersecting)) this.loadMoreInfinite();
+                        }, { rootMargin: '600px' });
+                        this.infiniteObs.observe(el);
+                    });
+                },
+                loadMoreInfinite() {
+                    if (this.loading || this.loadingMore || !this.hasMoreServerPages) return;
+                    if (this.visibleCount < this.filteredResults.length) {
+                        this.visibleCount += 30;
+                        return;
+                    }
+                    this.fetchHomepage(true);
+                },
+                retryGrid() { this.gridError = null; this.fetchHomepage(false); },
+                retryDetails() { if (this.pendingDetailsItem) this.fetchDetails(this.pendingDetailsItem); },
+                retryStreams() {
+                    this.streamsError = null;
+                    if (this.lastStreamsKey) {
+                        const k = this.lastStreamsKey;
+                        this.fetchStreams(k.id, k.provider, k.season, k.episode);
+                    }
+                },
+                retryPlayback() {
+                    this.playerError = null;
+                    if (this.lastPlayback) {
+                        const p = this.lastPlayback;
+                        this.playInBrowser(p.stream, p.mirror);
+                    }
+                },
                 startHeroInterval() {
                     this.heroInterval = setInterval(() => {
                         this.currentHeroIndex = (this.currentHeroIndex + 1) % 5;
@@ -588,17 +944,224 @@
                     this.stopHeroInterval();
                     this.startHeroInterval();
                 },
+                async fetchMe() {
+                    this.authLoading = true;
+                    try {
+                        const c = await fetch('/api/config');
+                        if (c.ok) {
+                            const cfg = await c.json();
+                            this.loginRequired = !!cfg.login_required;
+                        }
+                    } catch (e) {}
+                    try { const r = await fetch('/api/auth/me'); this.user = r.ok ? await r.json() : null; }
+                    catch (e) { this.user = null; }
+                    finally { this.authLoading = false; }
+                },
+                async logout() {
+                    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+                    this.user = null; this.historyItems = []; this.favoriteItems = []; this.recommendedItems = [];
+                    this.dlJobs = []; this.showDownloads = false; this.stopDlPolling();
+                    this.allResults = []; this.gridError = null; this.suggestResults = []; this.suggestStrings = [];
+                    this.showUserMenu = false; this.showLoginModal = false; this.category = 'Trending';
+                    this.closeDetails();
+                    window.scrollTo({ top: 0 });
+                },
                 async fetchHistory() {
+                    if (this.loginRequired && !this.user) { this.historyItems = []; return; }
                     try {
                         const res = await fetch('/api/history');
-                        if (res.ok) this.historyItems = await res.json();
+                        if (res.status === 401) { this.historyItems = []; this.authFailed(); return; }
+                        if (res.ok) { this.historyItems = await res.json(); this.fetchRecommendations(); }
                     } catch (e) {}
                 },
                 async fetchFavorites() {
+                    if (this.loginRequired && !this.user) { this.favoriteItems = []; return; }
                     try {
                         const res = await fetch('/api/favorites');
-                        if (res.ok) this.favoriteItems = await res.json();
+                        if (res.status === 401) { this.favoriteItems = []; this.authFailed(); return; }
+                        if (res.ok) { this.favoriteItems = await res.json(); this.fetchRecommendations(); }
                     } catch (e) {}
+                },
+                async fetchRecommendations() {
+                    this.loadingRecs = true;
+                    try {
+                        const res = await fetch('/api/recommendations?limit=24');
+                        if (res.status === 401) { this.recommendedItems = []; this.authFailed(); return; }
+                        if (res.ok) this.recommendedItems = await res.json();
+                    } catch (e) {}
+                    this.loadingRecs = false;
+                },
+                onSuggestInput() {
+                    clearTimeout(this.suggestTimer);
+                    const q = (this.searchQuery || '').trim();
+                    if (q.length < 2) { this.suggestResults = []; this.suggestStrings = []; this.showSuggest = false; return; }
+                    this.suggestTimer = setTimeout(() => this.fetchSuggest(q), 300);
+                },
+                onSuggestFocus() {
+                    if (this.suggestResults.length || this.suggestStrings.length) this.showSuggest = true;
+                    else if ((this.searchQuery || '').trim().length >= 2) this.onSuggestInput();
+                },
+                hideSuggestDelayed() { setTimeout(() => { this.showSuggest = false; }, 200); },
+                async fetchSuggest(q) {
+                    const myId = ++this.suggestReqId;
+                    try {
+                        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+                        if (res.status === 401) { this.authFailed(); return; }
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        if (myId !== this.suggestReqId) return;
+                        this.suggestResults = data.results || [];
+                        this.suggestStrings = data.suggestions || [];
+                        this.suggestIndex = -1;
+                        this.showSuggest = true;
+                    } catch (e) {}
+                },
+                moveSuggest(dir) {
+                    const n = this.suggestResults.length || this.suggestStrings.length;
+                    if (!n) return;
+                    this.suggestIndex = (this.suggestIndex + dir + n) % n;
+                    this.showSuggest = true;
+                },
+                onSuggestEnter() {
+                    if (this.showSuggest && this.suggestIndex >= 0 && this.suggestResults[this.suggestIndex]) {
+                        this.pickSuggest(this.suggestResults[this.suggestIndex]);
+                    } else if (this.suggestResults.length > 0) {
+                        this.pickSuggest(this.suggestResults[0]);
+                    } else {
+                        this.showToast('No matches yet — keep typing.', true);
+                    }
+                },
+                pickSuggest(item) {
+                    if (!item) return;
+                    this.showSuggest = false;
+                    this.searchActive = false;
+                    this.fetchDetails(item);
+                },
+                async runStringSuggest(s) {
+                    this.searchQuery = s;
+                    this.showSuggest = false;
+                    await this.fetchSuggest(s);
+                    if (this.suggestResults.length > 0) this.pickSuggest(this.suggestResults[0]);
+                },
+                getDownloadUrl(mirror, stream) {
+                    const headersStr = JSON.stringify(mirror.headers || []);
+                    const base = ((this.selectedItem && this.selectedItem.title) ? this.selectedItem.title : (stream && stream.filename ? stream.filename : 'video')).replace(/\.[a-z0-9]+$/i, '');
+                    return `/api/download?url=${encodeURIComponent(mirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}&filename=${encodeURIComponent(base)}`;
+                },
+                showToast(msg, isError = false) {
+                    this.toastMsg = msg; this.toastIsError = isError;
+                    clearTimeout(this._toastTimer);
+                    this._toastTimer = setTimeout(() => { this.toastMsg = null; }, 4500);
+                },
+                toggleDownloads() {
+                    this.showDownloads = !this.showDownloads;
+                    if (this.showDownloads) {
+                        this.fetchDlJobs();
+                        this.ensureDlPolling();
+                    } else if (this.dlActiveCount === 0) {
+                        this.stopDlPolling();
+                    }
+                },
+                ensureDlPolling() {
+                    if (this.dlPollTimer) return;
+                    this.dlPollTimer = setInterval(async () => {
+                        await this.fetchDlJobs(true);
+                        if (!this.showDownloads && this.dlActiveCount === 0) this.stopDlPolling();
+                    }, 1000);
+                },
+                stopDlPolling() {
+                    if (this.dlPollTimer) { clearInterval(this.dlPollTimer); this.dlPollTimer = null; }
+                },
+                async fetchDlJobs(quiet = false) {
+                    if (!quiet) this.dlLoading = true;
+                    try {
+                        const res = await fetch('/api/downloads');
+                        if (res.status === 401) {
+                            if (!quiet) this.authFailed();
+                            return;
+                        }
+                        if (res.ok) this.dlJobs = await res.json();
+                    } catch (e) {
+                        if (!quiet) this.showToast('Could not load downloads.', true);
+                    }
+                    this.dlLoading = false;
+                },
+                isDlActive(job) { return ['queued', 'downloading', 'merging'].includes(job.status); },
+                isDlDone(job) { return ['completed', 'failed', 'cancelled'].includes(job.status); },
+                dlStatusLabel(job) {
+                    const m = { queued: 'Queued', downloading: 'Downloading', merging: 'Merging', completed: 'Done', failed: 'Failed', cancelled: 'Cancelled' };
+                    return m[job.status] || job.status;
+                },
+                dlStatusText(job) {
+                    if (job.status === 'failed') return job.error || 'Download failed.';
+                    if (job.status === 'cancelled') return 'Cancelled.';
+                    if (job.status === 'completed') {
+                        const size = job.total || job.downloaded;
+                        const base = size ? this.formatBytes(size) + ' · saved on server — hit Save' : 'Done — hit Save';
+                        return job.error ? base + ' (' + job.error + ')' : base;
+                    }
+                    // Active: same shape as the TUI status line (size · speed · ETA).
+                    const bits = [];
+                    if (job.total) bits.push(this.formatBytes(job.downloaded) + ' of ' + this.formatBytes(job.total));
+                    else if (job.downloaded) bits.push(this.formatBytes(job.downloaded) + ' downloaded');
+                    else bits.push((job.progress || 0).toFixed(1) + '%');
+                    if (job.status === 'merging') bits.push('Merging audio & video…');
+                    else {
+                        if (job.speed_bps > 0) bits.push(this.formatSpeed(job.speed_bps));
+                        if (job.eta_secs != null && job.eta_secs > 0) bits.push('ETA ' + this.formatEta(job.eta_secs));
+                        else if (job.total) bits.push((job.progress || 0).toFixed(1) + '%');
+                    }
+                    return bits.join(' · ');
+                },
+                formatSpeed(bps) {
+                    if (!bps || bps <= 0) return '';
+                    return this.formatBytes(bps) + '/s';
+                },
+                formatEta(s) {
+                    s = Math.max(0, Math.floor(s || 0));
+                    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+                    const p = (n) => String(n).padStart(2, '0');
+                    return h > 0 ? h + ':' + p(m) + ':' + p(sec) : p(m) + ':' + p(sec);
+                },
+                async downloadStream(stream, mirror, idx) {
+                    if (!this.requireLogin()) return;
+                    if (!mirror) return;
+                    if (this.downloadingIdx !== null) return;
+                    this.downloadingIdx = idx;
+                    try {
+                        const headersArr = mirror.headers || [];
+                        const base = ((this.selectedItem && this.selectedItem.title) ? this.selectedItem.title : (stream && stream.filename ? stream.filename : 'video')).replace(/\.[a-z0-9]+$/i, '');
+                        const res = await fetch('/api/downloads', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: mirror.resolver_url, headers: headersArr, filename: base })
+                        });
+                        if (res.status === 401) { this.authFailed(); return; }
+                        if (!res.ok) { this.showToast('Download failed: ' + await this.apiErrorMessage(res, 'Could not start download.'), true); return; }
+                        const job = await res.json();
+                        this.showToast('Download started: ' + job.filename, false);
+                        this.showDownloads = true;
+                        this.ensureDlPolling();
+                        await this.fetchDlJobs(true);
+                    } catch (e) { this.showToast('Network error. Could not start download.', true); }
+                    finally { this.downloadingIdx = null; }
+                },
+                async cancelDownload(job) {
+                    try {
+                        const res = await fetch('/api/downloads/' + encodeURIComponent(job.id), { method: 'DELETE' });
+                        if (res.status === 401) { this.authFailed(); return; }
+                    } catch (e) {}
+                    await this.fetchDlJobs(true);
+                },
+                async dismissDownload(job) { await this.cancelDownload(job); },
+                async retryDownload(job) {
+                    try {
+                        const res = await fetch('/api/downloads/' + encodeURIComponent(job.id) + '/retry', { method: 'POST' });
+                        if (res.status === 401) { this.authFailed(); return; }
+                        if (!res.ok) { this.showToast('Retry failed: ' + await this.apiErrorMessage(res, 'Could not retry.'), true); return; }
+                        this.ensureDlPolling();
+                    } catch (e) { this.showToast('Network error.', true); }
+                    await this.fetchDlJobs(true);
                 },
                 getHistoryProgress(item) {
                     const hItem = this.historyItems.find(h => h.subject_id === item.id.value && h.provider === item.id.provider);
@@ -613,6 +1176,7 @@
                 },
                 async toggleFavorite() {
                     if (!this.selectedItem) return;
+                    if (!this.requireLogin()) return;
                     
                     const title = this.selectedItem.title;
                     const stype = this.selectedItem.media_type === 'series' ? 2 : 1;
@@ -633,29 +1197,22 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(req)
                         });
+                        if (res.status === 401) { this.authFailed(); return; }
                         if (res.ok) {
                             const data = await res.json();
                             this.isFavorite = data.is_favorite;
                             await this.fetchFavorites();
+                        } else {
+                            this.showToast(await this.apiErrorMessage(res, 'Could not update My List.'), true);
                         }
-                    } catch(e) {}
+                    } catch(e) { this.showToast('Network error. Check your connection.', true); }
                 },
                 handleScroll() {
                     this.scrolled = window.scrollY > 20;
                 },
                 async changePage(page) {
-                    if (page >= 1 && page <= this.totalPages) {
-                        this.currentPage = page;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                    if (page > this.totalPages && this.hasMoreServerPages) {
-                        if (this.searchQuery) {
-                            await this.search(true);
-                        } else {
-                            await this.fetchHomepage(true);
-                        }
-                        this.currentPage = page;
-                    }
+                    this.visibleCount = Math.max(30, page * 30);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 },
                 toggleSearch() {
                     this.searchActive = !this.searchActive;
@@ -680,10 +1237,14 @@
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 },
                 setCategory(cat) {
+                    if (this.loginRequired && (cat === 'My List' || cat === 'History') && !this.user) {
+                        this.showLoginModal = true;
+                        return;
+                    }
                     this.category = cat;
                     this.searchQuery = '';
                     this.searchActive = false;
-                    if (this.allResults.length === 0 || cat === 'Trending') { 
+                    if (this.allResults.length === 0 || cat === 'Trending') {
                         this.fetchHomepage();
                     }
                 },
@@ -691,6 +1252,14 @@
                     this.selectedItem = null;
                     this.showDetailsModal = false;
                     this.loadingDetails = false;
+                    this.detailsError = null;
+                    this.streamsError = null;
+                    this.playerError = null;
+                    this.subtitleCount = 0;
+                    this.selectedMirror = {};
+                    this.lastStreamsKey = null;
+                    this.lastPlayback = null;
+                    this.pendingDetailsItem = null;
                     this.activeSeason = null;
                     this.streams = [];
                     this.closePlayer();
@@ -713,114 +1282,116 @@
                 async fetchHomepage(append = false) {
                     if (!append) {
                         this.loading = true;
+                        this.gridError = null;
                         this.allResults = [];
                         this.serverPage = 1;
-                        this.currentPage = 1;
+                        this.visibleCount = 30;
                         this.hasMoreServerPages = true;
                     } else {
+                        if (this.loadingMore || !this.hasMoreServerPages) return;
                         this.serverPage++;
                         this.loadingMore = true;
                     }
                     try {
                         const res = await fetch(`/api/homepage?page=${this.serverPage}&provider=${encodeURIComponent(this.selectedProvider)}`);
-                        if(res.ok) {
+                        if (res.status === 401) { this.loading = false; this.loadingMore = false; if (append && this.serverPage > 1) this.serverPage--; this.authFailed(); return; }
+                        if (res.ok) {
                             const data = await res.json();
-                            if (data.length === 0) {
+                            if (!data || data.length === 0) {
                                 this.hasMoreServerPages = false;
                             }
                             if (append) {
-                                this.allResults = [...this.allResults, ...data];
+                                const seen = new Set(this.allResults.map(x => x.id.provider + '::' + x.id.value));
+                                for (const it of data) {
+                                    const k = it.id.provider + '::' + it.id.value;
+                                    if (!seen.has(k)) { seen.add(k); this.allResults.push(it); }
+                                }
                             } else {
                                 this.allResults = data;
                             }
+                            this.$nextTick(() => this.setupInfinite());
+                        } else {
+                            if (!append) this.gridError = await this.apiErrorMessage(res, 'Could not load titles.');
+                            else if (this.serverPage > 1) this.serverPage--;
                         }
                     } catch (e) {
-                        console.error(e);
+                        if (!append) this.gridError = 'Network error. Check your connection and retry.';
+                        else if (this.serverPage > 1) this.serverPage--;
                     }
                     this.loading = false;
                     this.loadingMore = false;
                 },
-                async search(append = false) {
-                    if (!this.searchQuery.trim()) {
-                        this.fetchHomepage();
+                async search() {
+                    // Dropdown-only search: full-page grid results were noisy/wrong,
+                    // so Enter now just opens the best dropdown match.
+                    const q = (this.searchQuery || '').trim();
+                    if (!q) return;
+                    if (this.suggestResults.length > 0) {
+                        const idx = this.suggestIndex >= 0 ? this.suggestIndex : 0;
+                        this.pickSuggest(this.suggestResults[idx]);
                         return;
                     }
-                    if (!append) {
-                        this.loading = true;
-                        this.allResults = [];
-                        this.serverPage = 1;
-                        this.currentPage = 1;
-                        this.hasMoreServerPages = true;
+                    await this.fetchSuggest(q);
+                    if (this.suggestResults.length > 0) {
+                        this.pickSuggest(this.suggestResults[0]);
                     } else {
-                        this.serverPage++;
-                        this.loadingMore = true;
+                        this.showToast('No matches yet — keep typing.', true);
                     }
-                    this.category = 'Search'; 
-                    try {
-                        const res = await fetch(`/api/search?q=${encodeURIComponent(this.searchQuery)}&page=${this.serverPage}&provider=${encodeURIComponent(this.selectedProvider)}`);
-                        if(res.ok) {
-                            const data = await res.json();
-                            if (data.length === 0) {
-                                this.hasMoreServerPages = false;
-                            }
-                            if (append) {
-                                this.allResults = [...this.allResults, ...data];
-                            } else {
-                                this.allResults = data;
-                            }
-                        } else {
-                            alert("Search failed: " + await res.text());
-                        }
-                    } catch (e) {
-                        alert("Network error.");
-                    }
-                    this.loading = false;
-                    this.loadingMore = false;
                 },
                 async fetchDetails(item) {
-                    this.closeDetails(); 
+                    if (!item || !item.id) { this.showToast('Invalid title. Try another.', true); return; }
+                    this.pendingDetailsItem = item;
+                    this.closeDetails();
                     this.showDetailsModal = true;
                     this.loadingDetails = true;
+                    this.detailsError = null;
                     try {
                         const res = await fetch(`/api/details?id=${encodeURIComponent(item.id.value)}&provider=${encodeURIComponent(item.id.provider)}`);
-                        if(res.ok) {
+                        if (res.status === 401) { this.loadingDetails = false; this.showDetailsModal = false; this.authFailed('Please sign in to view this title.'); return; }
+                        if (res.ok) {
                             this.selectedItem = await res.json();
-                            
+
                             if (!this.selectedItem.title) this.selectedItem.title = item.title;
                             if (!this.selectedItem.media_type) this.selectedItem.media_type = item.media_type;
                             if (!this.selectedItem.poster_url) this.selectedItem.poster_url = item.poster_url;
-                            
-                            if(this.selectedItem.seasons && this.selectedItem.seasons.length > 0) {
+
+                            if (this.selectedItem.seasons && this.selectedItem.seasons.length > 0) {
                                 this.activeSeason = this.selectedItem.seasons[0];
                             }
-                            
+
                             this.checkFavoriteStatus();
+                            this.subtitleCount = 0;
+                            this.selectedMirror = {};
                         } else {
-                            alert("Failed to fetch details.");
-                            this.showDetailsModal = false;
+                            this.detailsError = await this.apiErrorMessage(res, 'Failed to fetch details.');
                         }
                     } catch (e) {
-                        alert("Network error.");
-                        this.showDetailsModal = false;
+                        this.detailsError = 'Network error. Check your connection and retry.';
                     }
                     this.loadingDetails = false;
                 },
                 async fetchStreams(id, provider, season, episode) {
+                    if (!this.requireLogin()) return;
+                    this.lastStreamsKey = { id, provider, season, episode };
                     this.streams = [];
+                    this.streamsError = null;
                     this.closePlayer();
                     this.loadingStreams = true;
                     try {
                         const res = await fetch(`/api/streams?id=${encodeURIComponent(id)}&provider=${encodeURIComponent(provider)}&season=${season}&episode=${episode}`);
-                        if(res.ok) {
-                            this.streams = await res.json();
-                            if(this.streams.length === 0) {
-                                alert("No streams found!");
+                        if (res.status === 401) { this.loadingStreams = false; this.authFailed('Please sign in to watch.'); return; }
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.streams = data || [];
+                            this.selectedMirror = {};
+                            if (this.streams.length === 0) {
+                                this.streamsError = 'No playable sources for this episode yet. Try another episode or provider.';
                             }
                         } else {
-                            alert("Failed to find streams: " + await res.text());
+                            this.streamsError = await this.apiErrorMessage(res, 'Failed to find streams.');
                         }
                     } catch (e) {
-                        alert("Network error.");
+                        this.streamsError = 'Network error. Check your connection and retry.';
                     }
                     this.loadingStreams = false;
                 },
@@ -829,6 +1400,7 @@
                     return `/api/proxy?url=${encodeURIComponent(mirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}`;
                 },
                 async openVlcModal(stream, mirror) {
+                    if (!this.requireLogin()) return;
                     if(!mirror) return;
                     this.pendingVlcMirror = mirror;
                     this.vlcSubtitles = [];
@@ -847,6 +1419,7 @@
                     }
                 },
                 async executeVlcLaunch() {
+                    if (!this.requireLogin()) return;
                     if(!this.pendingVlcMirror) return;
                     try {
                         const headersStr = JSON.stringify(this.pendingVlcMirror.headers || []);
@@ -855,16 +1428,22 @@
                             playUrl += `&subtitle_url=${encodeURIComponent(this.selectedSubtitle)}`;
                         }
                         const res = await fetch(playUrl);
+                        if (res.status === 401) { this.authFailed('Please sign in to play in VLC.'); return; }
                         if(!res.ok) {
-                            alert(await res.text());
+                            this.showToast(await this.apiErrorMessage(res, 'VLC launch failed.'), true);
+                        } else {
+                            this.showToast('Opening in VLC…', false);
                         }
                         this.showVlcModal = false;
                     } catch (e) {
-                        alert("Network error.");
+                        this.showToast('Network error during VLC launch.', true);
                     }
                 },
                 async playInBrowser(stream, mirror) {
+                    if (!this.requireLogin()) return;
                     if(!mirror) return;
+                    this.lastPlayback = { stream, mirror };
+                    this.playerError = null;
                     this.closePlayer();
                     this.browserPlayUrl = this.getProxyUrl(mirror);
                     
@@ -872,11 +1451,16 @@
                         const video = document.getElementById('web-video');
                         if (!video) return;
                         
+                        video.onerror = () => {
+                            this.playerError = 'The video could not be loaded. The source may be offline — try another quality or VLC.';
+                        };
                         if (stream && stream.resource_id) {
                             try {
                                 const subRes = await fetch(`/api/subtitles?id=${encodeURIComponent(this.selectedItem.id.value)}&resource_id=${encodeURIComponent(stream.resource_id)}&season=${stream.season || 0}&episode=${stream.episode || 0}`);
+                                if (subRes.status === 401) { this.authFailed('Please sign in to load subtitles.'); return; }
                                 if (subRes.ok) {
                                     const subs = await subRes.json();
+                                    this.subtitleCount = (subs || []).length;
                                     subs.forEach((sub) => {
                                         const track = document.createElement('track');
                                         track.kind = 'captions';
@@ -886,9 +1470,7 @@
                                         video.appendChild(track);
                                     });
                                 }
-                            } catch(e) {
-                                console.error("Failed to load subtitles", e);
-                            }
+                            } catch(e) {}
                         }
 
                         const defaultOptions = {
@@ -946,9 +1528,14 @@
 
                         if (Hls.isSupported()) {
                             this.hls = new Hls();
+                            this.hls.on(Hls.Events.ERROR, (event, data) => {
+                                if (data && data.fatal) {
+                                    this.playerError = 'Stream error (' + (data.details || data.type || 'fatal') + '). Try another quality or VLC.';
+                                }
+                            });
                             this.hls.loadSource(this.browserPlayUrl);
                             this.hls.attachMedia(video);
-                            
+
                             this.hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
                                 const availableQualities = this.hls.levels.map((l) => l.height);
                                 availableQualities.sort((a, b) => b - a);
