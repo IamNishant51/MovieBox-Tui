@@ -410,9 +410,9 @@
                 <button @click="showVlcModal = false" class="absolute top-4 right-4 z-20 text-gray-400 hover:text-white transition-all">
                     <i class="fas fa-times text-xl"></i>
                 </button>
-                <h2 class="text-2xl font-bold mb-4">Play in VLC</h2>
+                <h2 class="text-2xl font-bold mb-4">{{ isMobile ? 'Play in External App' : 'Play in VLC' }}</h2>
                 <div class="mb-4 text-sm text-gray-300">
-                    <p class="mb-2"><i class="fas fa-info-circle text-blue-400 mr-2"></i> Quality and Audio tracks can be changed natively by right-clicking inside VLC after it opens.</p>
+                    <p class="mb-2"><i class="fas fa-info-circle text-blue-400 mr-2"></i> Quality and Audio tracks can be changed natively inside your player.</p>
                 </div>
                 
                 <div class="mb-6">
@@ -426,7 +426,7 @@
                 <div class="flex justify-end gap-3 mt-4">
                     <button @click="showVlcModal = false" class="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500 font-bold transition-all">Cancel</button>
                     <button @click="executeVlcLaunch" class="px-4 py-2 rounded bg-red-600 hover:bg-red-500 font-bold flex items-center transition-all">
-                        <i class="fas fa-desktop mr-2"></i> Launch VLC
+                        <i :class="isMobile ? 'fas fa-external-link-alt mr-2' : 'fas fa-desktop mr-2'"></i> {{ isMobile ? 'Launch App' : 'Launch VLC' }}
                     </button>
                 </div>
             </div>
@@ -591,7 +591,7 @@
                                             <i class="fas fa-play mr-1"></i> Play
                                         </button>
                                         <button @click="openVlcModal(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
-                                            <i class="fas fa-desktop mr-1"></i> VLC
+                                            <i :class="isMobile ? 'fas fa-external-link-alt mr-1' : 'fas fa-desktop mr-1'"></i> {{ isMobile ? 'Play in App' : 'VLC' }}
                                         </button>
                                         <button @click="downloadStream(stream, activeMirror(stream, idx), idx)" :disabled="downloadingIdx === idx" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md disabled:opacity-50 disabled:cursor-wait">
                                             <i :class="['mr-1', downloadingIdx === idx ? 'fas fa-spinner fa-spin' : 'fas fa-download']"></i>
@@ -644,6 +644,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js"></script>
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script>
         new Vue({
@@ -662,7 +663,9 @@
                 streams: [],
                 browserPlayUrl: null,
                 hls: null,
+                dash: null,
                 player: null,
+                isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
                 category: 'Trending',
                 currentPage: 1,
                 itemsPerPage: 24,
@@ -1306,6 +1309,10 @@
                         this.hls.destroy();
                         this.hls = null;
                     }
+                    if (this.dash) {
+                        this.dash.reset();
+                        this.dash = null;
+                    }
                 },
                 async fetchHomepage(append = false) {
                     if (!append) {
@@ -1449,22 +1456,61 @@
                 async executeVlcLaunch() {
                     if (!this.requireLogin()) return;
                     if(!this.pendingVlcMirror) return;
+
+                    const headersStr = JSON.stringify(this.pendingVlcMirror.headers || []);
+                    let proxyUrl = window.location.origin + `/api/proxy?url=${encodeURIComponent(this.pendingVlcMirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}`;
+
+                    if (this.isMobile) {
+                        try {
+                            this.launchingVlc = true;
+                            let sidecarFetchUrl = `/api/sidecar?url=${encodeURIComponent(this.pendingVlcMirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}`;
+                            if (this.selectedSubtitle) {
+                                sidecarFetchUrl += `&sub=${encodeURIComponent(this.selectedSubtitle)}`;
+                            }
+                            
+                            const sidecarRes = await fetch(sidecarFetchUrl);
+                            if (!sidecarRes.ok) throw new Error("Failed to spawn proxy");
+                            
+                            let sidecarUrl = await sidecarRes.text();
+                            
+                            // Ensure the IP points to the actual server, not 0.0.0.0 or localhost on the phone
+                            sidecarUrl = sidecarUrl.replace('://0.0.0.0:', '://' + window.location.hostname + ':')
+                                                   .replace('://127.0.0.1:', '://' + window.location.hostname + ':');
+
+                            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                                window.location.href = "vlc://" + sidecarUrl;
+                            } else {
+                                const urlWithoutScheme = sidecarUrl.replace(/^https?:\/\//, '');
+                                const scheme = sidecarUrl.startsWith('https') ? 'https' : 'http';
+                                window.location.href = `intent://${urlWithoutScheme}#Intent;action=android.intent.action.VIEW;scheme=${scheme};type=video/*;end`;
+                            }
+                        } catch (e) {
+                            console.error(e);
+                            alert("Error generating mobile link");
+                        } finally {
+                            this.launchingVlc = false;
+                            this.showVlcModal = false;
+                        }
+                        return;
+                    }
+
                     try {
-                        const headersStr = JSON.stringify(this.pendingVlcMirror.headers || []);
                         let playUrl = `/api/play?url=${encodeURIComponent(this.pendingVlcMirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}`;
                         if (this.selectedSubtitle) {
-                            playUrl += `&subtitle_url=${encodeURIComponent(this.selectedSubtitle)}`;
+                            playUrl += `&sub=${encodeURIComponent(this.selectedSubtitle)}`;
                         }
+                        
+                        this.launchingVlc = true;
                         const res = await fetch(playUrl);
-                        if (res.status === 401) { this.authFailed('Please sign in to play in VLC.'); return; }
-                        if(!res.ok) {
-                            this.showToast(await this.apiErrorMessage(res, 'VLC launch failed.'), true);
-                        } else {
-                            this.showToast('Opening in VLC…', false);
+                        if (!res.ok) {
+                            alert("Failed to launch VLC on the server. Ensure VLC is installed.");
                         }
-                        this.showVlcModal = false;
                     } catch (e) {
-                        this.showToast('Network error during VLC launch.', true);
+                        console.error(e);
+                        alert("Error launching VLC.");
+                    } finally {
+                        this.launchingVlc = false;
+                        this.showVlcModal = false;
                     }
                 },
                 async playInBrowser(stream, mirror) {
@@ -1554,7 +1600,102 @@
                             }, 10000); // every 10s
                         };
 
-                        if (Hls.isSupported()) {
+                        if (this.browserPlayUrl.includes('.mpd')) {
+                            const proxyUrlParams = new URLSearchParams(this.browserPlayUrl.split('?')[1]);
+                            const originalManifestUrl = proxyUrlParams.get('url');
+                            const headersStr = proxyUrlParams.get('headers') || '[]';
+                            
+                            let originalBaseUrl = '';
+                            if (originalManifestUrl) {
+                                const urlObj = new URL(originalManifestUrl);
+                                const parts = urlObj.pathname.split('/');
+                                parts.pop();
+                                urlObj.pathname = parts.join('/') + '/';
+                                urlObj.search = ''; 
+                                originalBaseUrl = urlObj.href;
+                            }
+
+                            fetch(this.browserPlayUrl).then(res => res.text()).then(manifestText => {
+                                let modifiedManifest = manifestText;
+                                const mpdMatch = modifiedManifest.match(/<MPD[^>]*>/i);
+                                if (mpdMatch && originalBaseUrl) {
+                                    const insertionIndex = mpdMatch.index + mpdMatch[0].length;
+                                    modifiedManifest = modifiedManifest.slice(0, insertionIndex) + 
+                                        `\n  <BaseURL>${originalBaseUrl}</BaseURL>\n` + 
+                                        modifiedManifest.slice(insertionIndex);
+                                }
+                                
+                                const blob = new Blob([modifiedManifest], { type: 'application/dash+xml' });
+                                const blobUrl = URL.createObjectURL(blob);
+
+                                initPlayer(); // Initialize Plyr BEFORE dash.js to prevent DOM detachment issues
+
+                                this.dash = dashjs.MediaPlayer().create();
+                                this.dash.extend("RequestModifier", function () {
+                                    return {
+                                        modifyRequestURL: function (url) {
+                                            if (url.startsWith("blob:") || url.includes("/api/proxy?url=")) {
+                                                return url;
+                                            }
+                                            return `/api/proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headersStr)}`;
+                                        }
+                                    };
+                                }, true);
+                                
+                                this.dash.initialize(video, blobUrl, false);
+                                
+                                this.dash.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+                                    const bitrates = this.dash.getBitrateInfoListFor("video");
+                                    
+                                    if (bitrates.length === 0) {
+                                        this.playerError = 'Unsupported video codec (likely HEVC/H.265). Your browser can only play the audio. Please use the "Play in VLC" button instead.';
+                                        return;
+                                    }
+
+                                    const availableQualities = bitrates.map(b => b.height).filter((h, i, a) => a.indexOf(h) === i).sort((a, b) => b - a);
+                                    
+                                    if (availableQualities.length > 0 && this.player) {
+                                        // Dynamically update Plyr options for DASH
+                                        this.player.options.quality = {
+                                            default: availableQualities[0],
+                                            options: availableQualities,
+                                            forced: true,
+                                            onChange: (newQuality) => {
+                                                const cfg = { streaming: { abr: { autoSwitchBitrate: { video: false } } } };
+                                                this.dash.updateSettings(cfg);
+                                                const match = this.dash.getBitrateInfoListFor("video").findIndex(b => b.height === newQuality);
+                                                if (match !== -1) {
+                                                    this.dash.setQualityFor("video", match);
+                                                }
+                                            }
+                                        };
+                                    }
+                                    
+                                    this.player.play();
+                                });
+                                
+                                this.dash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+                                    let errStr = 'fatal';
+                                    if (e && e.error) {
+                                        errStr = e.error.message || e.error.code || e.error;
+                                        if (typeof errStr === 'object') errStr = e.error.code || 'manifest/download error';
+                                    } else if (e && e.type) {
+                                        errStr = e.type;
+                                    }
+                                    if (errStr !== 'fatal') {
+                                        this.playerError = 'Stream error (' + errStr + '). Try another quality or VLC.';
+                                    }
+                                });
+
+                                video.addEventListener('error', (e) => {
+                                    if (video.error && video.error.code === 3) {
+                                        this.playerError = 'Video decode error. This stream uses an unsupported codec (like HEVC) for your browser. Please use VLC.';
+                                    }
+                                });
+                            }).catch(() => {
+                                this.playerError = 'Stream error (manifest fetch failed). Try another quality or VLC.';
+                            });
+                        } else if (Hls.isSupported()) {
                             this.hls = new Hls();
                             this.hls.on(Hls.Events.ERROR, (event, data) => {
                                 if (data && data.fatal) {

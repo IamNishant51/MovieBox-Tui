@@ -116,6 +116,23 @@ struct RecsQuery {
     limit: Option<usize>,
 }
 
+// ---------------------------------------------------------------- sidecar
+
+async fn sidecar_handler(
+    State(state): State<AppState>,
+    headers_map: HeaderMap,
+    Query(query): Query<PlayQuery>,
+) -> impl IntoResponse {
+    if let Err(r) = require_auth(&state, &headers_map).await {
+        return r;
+    }
+    let headers = query.headers.as_ref().map(|s| parse_headers(s)).unwrap_or_default();
+    match moviebox_tui::proxy::spawn_sidecar(&query.url, &headers, query.subtitle_url.as_deref()) {
+        Ok(local_url) => (StatusCode::OK, local_url).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to spawn sidecar: {}", e)).into_response(),
+    }
+}
+
 // ---------------------------------------------------------------- main
 
 #[tokio::main]
@@ -153,8 +170,26 @@ async fn main() {
         println!("[auth] Google OAuth not configured (set GOOGLE_CLIENT_ID/SECRET in .env). Auth routes will return 503.");
     }
 
-    let app = Router::new()
+    // Optional split-deploy CORS (Vercel frontend -> this API). Same-origin
+    // deploys skip it entirely.
+    let cors = frontend_url().and_then(|origin| {
+        use axum::http::Method;
+        origin.parse::<HeaderValue>().ok().map(|o| {
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(tower_http::cors::AllowOrigin::exact(o))
+                .allow_methods([Method::GET, Method::POST, Method::DELETE])
+                .allow_headers([header::CONTENT_TYPE, header::RANGE])
+                .allow_credentials(true)
+                .max_age(Duration::from_secs(3600))
+        })
+    });
+    if cors.is_some() {
+        println!("[cors] split deploy, allowing {}", frontend_url().unwrap());
+    }
+
+    let mut app = Router::new()
         .route("/api/config", get(config_handler))
+        .route("/api/health", get(health_handler))
         .route("/", get(index_handler))
         .route("/api/search", get(search_handler))
         .route("/api/suggest", get(suggest_handler))
@@ -162,6 +197,7 @@ async fn main() {
         .route("/api/streams", get(streams_handler))
         .route("/api/subtitles", get(subtitles_handler))
         .route("/api/play", get(play_handler))
+        .route("/api/sidecar", get(sidecar_handler))
         .route("/api/proxy", get(proxy_handler))
         .route("/api/download", get(download_handler))
         .route("/api/downloads", get(list_downloads_handler).post(start_download_handler))
@@ -175,7 +211,11 @@ async fn main() {
         .route("/api/auth/login", get(auth_login_handler))
         .route("/api/auth/callback", get(auth_callback_handler))
         .route("/api/auth/me", get(auth_me_handler))
-        .route("/api/auth/logout", post(auth_logout_handler))
+        .route("/api/auth/logout", post(auth_logout_handler));
+    if let Some(cors) = cors {
+        app = app.layer(cors);
+    }
+    let app = app
         .layer(tower_http::limit::RequestBodyLimitLayer::new(1024 * 1024))
         .layer(tower_http::timeout::TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(20)))
         .layer(tower_http::compression::CompressionLayer::new().gzip(true).br(true).zstd(true))
@@ -204,6 +244,12 @@ async fn security_headers_mw(
         HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
     );
     res
+}
+
+// ---------------------------------------------------------------- health & index
+
+async fn health_handler() -> impl IntoResponse {
+    StatusCode::OK
 }
 
 // ---------------------------------------------------------------- index
@@ -1320,6 +1366,43 @@ fn app_mode() -> String {
 
 fn login_required() -> bool {
     matches!(app_mode().as_str(), "production" | "prod")
+}
+
+/// Split deploy (e.g. static frontend on Vercel): absolute origin of this API,
+/// injected into the served HTML so the browser knows where to call.
+/// Empty = same-origin (single-host deploy, the default).
+fn api_base_url() -> String {
+    std::env::var("API_BASE_URL").unwrap_or_default()
+}
+
+/// Origin of a separately-hosted frontend (e.g. https://nishantflix.vercel.app).
+/// Enables CORS+credentials, cross-site Secure cookies, post-login redirect.
+fn frontend_url() -> Option<String> {
+    std::env::var("FRONTEND_URL")
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// VLC / local-player launching only makes sense on the machine you watch on.
+/// Remote/production deploys must hide it (it would spawn VLC on the server).
+fn local_playback_enabled() -> bool {
+    !matches!(
+        std::env::var("LOCAL_PLAYBACK")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "0" | "false" | "no" | "off"
+    )
+}
+
+fn session_cookie_attrs() -> &'static str {
+    // SameSite=None requires Secure (https) — only for split deploys.
+    if frontend_url().is_some() {
+        "SameSite=None; Secure"
+    } else {
+        "SameSite=Lax"
+    }
 }
 
 fn dev_session() -> Session {

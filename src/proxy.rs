@@ -102,7 +102,8 @@ pub fn spawn_sidecar(
         format!("/https/{target_url}")
     };
 
-    Ok(format!("http://127.0.0.1:{port}{proxy_path}"))
+    let host_ip = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    Ok(format!("http://{host_ip}:{port}{proxy_path}"))
 }
 
 pub async fn run_sidecar(
@@ -115,7 +116,7 @@ pub async fn run_sidecar(
         .build()
         .unwrap_or_default();
 
-    let listener = match TcpListener::bind("127.0.0.1:0").await {
+    let listener = match TcpListener::bind("0.0.0.0:0").await {
         Ok(l) => l,
         Err(_) => return,
     };
@@ -173,6 +174,7 @@ pub async fn run_sidecar(
         }
 
         let sub_opt = subtitle_url.clone();
+        let host_ip = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         tokio::spawn(async move {
             let _guard = ConnectionGuard {
                 conns: active_conns,
@@ -185,6 +187,7 @@ pub async fn run_sidecar(
                 &headers,
                 target_host.as_deref(),
                 sub_opt.as_deref(),
+                &host_ip,
             )
             .await;
         });
@@ -210,6 +213,7 @@ async fn handle_connection(
     auth_headers: &[(String, String)],
     target_host: Option<&str>,
     subtitle_url: Option<&str>,
+    host_ip: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -330,7 +334,7 @@ async fn handle_connection(
             return Ok(());
         }
         let manifest_str = String::from_utf8_lossy(&manifest_bytes);
-        let rewritten = rewrite_dash_manifest(&manifest_str, proxy_port, target_host, subtitle_url);
+        let rewritten = rewrite_dash_manifest(&manifest_str, proxy_port, target_host, subtitle_url, host_ip);
         let rewritten_bytes = rewritten.as_bytes();
 
         let headers_out = format!(
@@ -420,6 +424,7 @@ fn rewrite_dash_manifest(
     proxy_port: u16,
     target_host: Option<&str>,
     subtitle_url: Option<&str>,
+    host_ip: &str,
 ) -> String {
     let Some(host) = target_host else {
         return manifest.to_string();
@@ -428,8 +433,8 @@ fn rewrite_dash_manifest(
     let https_prefix = format!("https://{host}/");
     let http_prefix = format!("http://{host}/");
 
-    let proxy_https = format!("http://127.0.0.1:{proxy_port}/https/{host}/");
-    let proxy_http = format!("http://127.0.0.1:{proxy_port}/http/{host}/");
+    let proxy_https = format!("http://{host_ip}:{proxy_port}/https/{host}/");
+    let proxy_http = format!("http://{host_ip}:{proxy_port}/http/{host}/");
 
     let mut rewritten = manifest
         .replace(&https_prefix, &proxy_https)
@@ -439,7 +444,7 @@ fn rewrite_dash_manifest(
         if !sub.is_empty() {
             let encoded_sub =
                 percent_encoding::utf8_percent_encode(sub, percent_encoding::NON_ALPHANUMERIC);
-            let sub_proxy_url = format!("http://127.0.0.1:{proxy_port}/sub/{encoded_sub}");
+            let sub_proxy_url = format!("http://{host_ip}:{proxy_port}/sub/{encoded_sub}");
             let sub_adaptation_set = format!(
                 r#"<AdaptationSet contentType="text" mimeType="text/vtt" lang="en">
     <Role schemeIdUri="urn:mpeg:dash:role:2011" value="subtitle"/>
