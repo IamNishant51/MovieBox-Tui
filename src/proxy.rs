@@ -340,7 +340,13 @@ async fn handle_connection(
             return Ok(());
         }
         let manifest_str = String::from_utf8_lossy(&manifest_bytes);
-        let rewritten = rewrite_dash_manifest(&manifest_str, proxy_port, target_host, subtitle_url, host_ip);
+        let rewritten = rewrite_dash_manifest(
+            &manifest_str,
+            proxy_port,
+            target_host,
+            subtitle_url,
+            host_ip,
+        );
         let rewritten_bytes = rewritten.as_bytes();
 
         let headers_out = format!(

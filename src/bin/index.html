@@ -93,21 +93,10 @@
                 </div>
                 <div class="flex items-center space-x-3">
                     <div class="relative flex items-center">
-                        <input v-model="searchQuery" @input="onSuggestInput" @focus="onSuggestFocus" @blur="hideSuggestDelayed" @keydown.down.prevent="moveSuggest(1)" @keydown.up.prevent="moveSuggest(-1)" @keydown.enter="onSuggestEnter" @keydown.esc="showSuggest = false" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-black/70 border border-gray-600 text-white py-1.5 text-sm md:text-base rounded focus:outline-none focus:border-white transition-all min-h-[36px] absolute right-0 md:relative', searchActive ? 'w-48 sm:w-64 md:w-72 opacity-100 px-4 pr-10' : 'w-0 opacity-0 border-none px-0']" />
+                        <input v-model="searchQuery" @input="onSearchInput" @keydown.esc="searchQuery = ''; onSearchInput()" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-black/70 border border-gray-600 text-white py-1.5 text-sm md:text-base rounded focus:outline-none focus:border-white transition-all min-h-[36px] absolute right-0 md:relative', searchActive ? 'w-48 sm:w-64 md:w-72 opacity-100 px-4 pr-10' : 'w-0 opacity-0 border-none px-0']" />
                         <button @click="toggleSearch" aria-label="Search" :class="['text-white hover:text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all z-10', searchActive ? 'absolute right-0 text-gray-300' : 'relative']">
                             <i class="fas fa-search"></i>
                         </button>
-                        <div v-if="showSuggest && (suggestResults.length || suggestStrings.length)" class="suggest-panel absolute top-full mt-2 right-0 md:right-auto md:w-96 max-h-[60vh] overflow-y-auto bg-[#181818] border border-gray-700 rounded-lg shadow-2xl z-[60] w-64 sm:w-72">
-                            <div v-for="(item, idx) in suggestResults" :key="item.id.value + idx" @mousedown.prevent="pickSuggest(item)" :class="['flex items-center gap-3 p-2 cursor-pointer', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">
-                                <img v-if="item.poster_url" :src="item.poster_url" class="w-10 h-14 object-cover rounded flex-none bg-gray-800" loading="lazy" />
-                                <div v-else class="w-10 h-14 flex-none flex items-center justify-center bg-gray-800 rounded text-gray-500"><i class="fas fa-image"></i></div>
-                                <div class="min-w-0">
-                                    <div class="truncate text-sm font-bold">{{ item.title }}</div>
-                                    <div class="text-xs text-gray-400">{{ item.year || 'N/A' }} · {{ item.media_type === 'movie' ? 'Movie' : 'TV' }}</div>
-                                </div>
-                            </div>
-                            <div v-if="!suggestResults.length" v-for="(s, idx) in suggestStrings" :key="'s-'+idx" @mousedown.prevent="runStringSuggest(s)" :class="['px-4 py-2 text-sm cursor-pointer truncate', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">{{ s }}</div>
-                        </div>
                     </div>
                     <button @click="toggleDownloads" aria-label="Downloads" class="relative text-white hover:text-gray-300 p-1">
                         <i class="fas fa-download text-lg"></i>
@@ -153,8 +142,7 @@
         <div v-else-if="heroItems.length > 0 && category === 'Trending'" class="relative h-[55vh] md:h-[70vh] w-full group overflow-hidden">
             <transition-group name="hero-fade" tag="div" class="absolute inset-0">
                 <div v-for="(item, index) in heroItems" :key="item.id.value" v-show="index === currentHeroIndex" class="absolute inset-0 w-full h-full">
-                    <img :src="item.poster_url" class="absolute inset-0 w-full h-full object-cover object-top opacity-50 transition-opacity duration-700 group-hover:opacity-70" />
-                    <div class="absolute inset-0 hero-gradient"></div>
+                    <img :src="optimizePoster(item.poster_url)" class="absolute inset-0 w-full h-full object-cover object-top opacity-50 transition-opacity duration-700 group-hover:opacity-70" decoding="async" /><div class="absolute inset-0 hero-gradient"></div>
                     <div class="absolute bottom-[12%] md:bottom-1/4 left-4 right-4 md:right-auto md:left-12 max-w-2xl z-10">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="netflix-red font-bold tracking-[.2em] text-xs md:text-sm">N</span>
@@ -208,11 +196,6 @@
                         <select v-model="selectedProvider" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
                             <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
                         </select>
-                        <select v-model="filterType" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
-                            <option value="">All Types</option>
-                            <option value="movie">Movies</option>
-                            <option value="series">TV Shows</option>
-                        </select>
                         <select v-model="filterGenre" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
                             <option value="">All Genres</option>
                             <option v-for="g in availableGenres" :key="g" :value="g">{{ g }}</option>
@@ -241,7 +224,7 @@
                         <div class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
                             <div v-for="item in historyItemsMapped" :key="'hist-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
-                                    <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                                    <img v-if="item.poster_url" :src="optimizePoster(item.poster_url)" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" decoding="async" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
                                 </div>
                                 <div class="absolute inset-0 flex flex-col justify-end p-2 md:p-3 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
@@ -260,7 +243,7 @@
                         <div class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
                             <div v-for="item in favoriteItemsMapped" :key="'fav-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
-                                    <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                                    <img v-if="item.poster_url" :src="optimizePoster(item.poster_url)" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" decoding="async" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
                                 </div>
                                 <div class="absolute inset-0 flex flex-col justify-end p-2 md:p-3 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
@@ -279,7 +262,7 @@
                         <div v-else class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
                             <div v-for="item in recommendedItems" :key="'rec-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
-                                    <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                                    <img v-if="item.poster_url" :src="optimizePoster(item.poster_url)" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" decoding="async" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
                                 </div>
                                 <div class="absolute inset-0 flex flex-col justify-end p-2 md:p-3 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
@@ -299,7 +282,7 @@
                         <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
                             <div v-for="item in visibleResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
-                                    <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                                    <img v-if="item.poster_url" :src="optimizePoster(item.poster_url)" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" decoding="async" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
                                 </div>
                                 <div class="absolute top-2 left-2 flex gap-1">
@@ -321,7 +304,7 @@
                 <div v-else class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
                     <div v-for="item in visibleResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                         <div class="aspect-[2/3] w-full bg-gray-800">
-                            <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                            <img v-if="item.poster_url" :src="optimizePoster(item.poster_url)" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" decoding="async" />
                             <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
                         </div>
                         <div class="absolute top-2 left-2 flex gap-1">
@@ -468,7 +451,7 @@
                 <div v-else-if="selectedItem" class="w-full flex flex-col animate-[fadeIn_0.5s_ease-out]">
                     <!-- Modal Hero -->
                 <div class="relative h-[32vh] md:h-[50vh] w-full bg-[#111]">
-                    <img :src="selectedItem.poster_url || 'https://via.placeholder.com/1200x600/111/fff'" class="w-full h-full object-cover object-top opacity-60" loading="lazy" />
+                    <img :src="selectedItem.poster_url ? optimizePoster(selectedItem.poster_url) : 'https://via.placeholder.com/1200x600/111/fff'" class="w-full h-full object-cover object-top opacity-60" loading="lazy" decoding="async" />
                     <div class="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/50 to-transparent"></div>
                     <div class="absolute bottom-0 left-0 p-4 md:p-8 w-full">
                         <div class="flex items-center gap-2 mb-1 md:mb-2">
@@ -680,8 +663,7 @@
                 providers: [
                     { id: 'moviebox', name: 'MovieBox' },
                     { id: 'fourkhdhub', name: '4KHDHub' },
-                    { id: 'bdix_circleftp', name: 'CircleFTP (BDIX)' },
-                    { id: 'bdix_dhakaflix', name: 'DhakaFlix (BDIX)' }
+                    { id: 'addons', name: 'Stremio Addons' }
                 ],
                 suggestResults: [],
                 suggestStrings: [],
@@ -738,9 +720,9 @@
                 },
                 filteredResults() {
                     let res = this.allResults;
-                    if (this.category === 'Movies' || this.filterType === 'movie') {
+                    if (this.category === 'Movies') {
                         res = res.filter(item => item.media_type === 'movie');
-                    } else if (this.category === 'Series' || this.filterType === 'series') {
+                    } else if (this.category === 'Series') {
                         res = res.filter(item => item.media_type === 'series');
                     }
                     if (this.category === 'History') {
@@ -848,7 +830,7 @@
                 selectedProvider() {
                     this.currentPage = 1;
                     this.fetchHomepage(false);
-                    if ((this.searchQuery || '').trim().length >= 2) this.onSuggestInput();
+                    if ((this.searchQuery || '').trim().length >= 1) this.onSearchInput();
                 }
             },
             methods: {
@@ -887,6 +869,16 @@
                     let i = 0; let v = n;
                     while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
                     return (v >= 100 ? Math.round(v) : v.toFixed(1)) + u[i];
+                },
+                optimizePoster(url) {
+                    if (!url) return '';
+                    if (url.includes('c.aoneroom.com') && url.includes('_1_4.jpg')) {
+                        return url.replace('_1_4.jpg', '_1_2.jpg');
+                    }
+                    if (url.includes('c.aoneroom.com') && url.includes('_1_3.jpg')) {
+                        return url.replace('_1_3.jpg', '_1_2.jpg');
+                    }
+                    return url;
                 },
                 activeMirror(stream, idx) {
                     if (!stream || !stream.mirrors) return null;
@@ -1009,57 +1001,17 @@
                     } catch (e) {}
                     this.loadingRecs = false;
                 },
-                onSuggestInput() {
+                onSearchInput() {
                     clearTimeout(this.suggestTimer);
                     const q = (this.searchQuery || '').trim();
-                    if (q.length < 2) { this.suggestResults = []; this.suggestStrings = []; this.showSuggest = false; return; }
-                    this.suggestTimer = setTimeout(() => this.fetchSuggest(q), 300);
-                },
-                onSuggestFocus() {
-                    if (this.suggestResults.length || this.suggestStrings.length) this.showSuggest = true;
-                    else if ((this.searchQuery || '').trim().length >= 2) this.onSuggestInput();
-                },
-                hideSuggestDelayed() { setTimeout(() => { this.showSuggest = false; }, 200); },
-                async fetchSuggest(q) {
-                    const myId = ++this.suggestReqId;
-                    try {
-                        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
-                        if (res.status === 401) { this.authFailed(); return; }
-                        if (!res.ok) return;
-                        const data = await res.json();
-                        if (myId !== this.suggestReqId) return;
-                        this.suggestResults = data.results || [];
-                        this.suggestStrings = data.suggestions || [];
-                        this.suggestIndex = -1;
-                        this.showSuggest = true;
-                    } catch (e) {}
-                },
-                moveSuggest(dir) {
-                    const n = this.suggestResults.length || this.suggestStrings.length;
-                    if (!n) return;
-                    this.suggestIndex = (this.suggestIndex + dir + n) % n;
-                    this.showSuggest = true;
-                },
-                onSuggestEnter() {
-                    if (this.showSuggest && this.suggestIndex >= 0 && this.suggestResults[this.suggestIndex]) {
-                        this.pickSuggest(this.suggestResults[this.suggestIndex]);
-                    } else if (this.suggestResults.length > 0) {
-                        this.pickSuggest(this.suggestResults[0]);
-                    } else {
-                        this.showToast('No matches yet — keep typing.', true);
+                    if (q.length === 0) { 
+                        if (this.category.startsWith('Search:')) this.goHome();
+                        return; 
                     }
-                },
-                pickSuggest(item) {
-                    if (!item) return;
-                    this.showSuggest = false;
-                    this.searchActive = false;
-                    this.fetchDetails(item);
-                },
-                async runStringSuggest(s) {
-                    this.searchQuery = s;
-                    this.showSuggest = false;
-                    await this.fetchSuggest(s);
-                    if (this.suggestResults.length > 0) this.pickSuggest(this.suggestResults[0]);
+                    this.suggestTimer = setTimeout(() => {
+                        this.category = 'Search: ' + q;
+                        this.fetchHomepage(false);
+                    }, 500);
                 },
                 getDownloadUrl(mirror, stream) {
                     const headersStr = JSON.stringify(mirror.headers || []);
@@ -1259,10 +1211,11 @@
                     this.searchQuery = '';
                     this.searchActive = false;
                     this.visibleCount = 30;
-                    if (this.allResults.length === 0 || cat === 'Trending') {
-                        this.fetchHomepage();
+                    if (cat === 'History' || cat === 'My List') {
+                        // local only
+                    } else {
+                        this.fetchHomepage(false);
                     }
-                    // Re-observe: the sentinel remounts when the grid switches.
                     this.$nextTick(() => this.setupInfinite());
                 },
                 closeDetails() {
@@ -1314,7 +1267,13 @@
                         this.loadingMore = true;
                     }
                     try {
-                        const res = await fetch(`/api/homepage?page=${this.serverPage}&provider=${encodeURIComponent(this.selectedProvider)}`);
+                        const sq = this.searchQuery.trim();
+                        const isSearch = this.category.startsWith('Search:') && sq.length > 0;
+                        const url = isSearch
+                            ? `/api/search?q=${encodeURIComponent(sq)}&page=${this.serverPage}&provider=${encodeURIComponent(this.selectedProvider)}`
+                            : `/api/homepage?page=${this.serverPage}&provider=${encodeURIComponent(this.selectedProvider)}&category=${encodeURIComponent(this.category)}`;
+                        
+                        const res = await fetch(url);
                         if (res.status === 401) { this.loading = false; this.loadingMore = false; if (append && this.serverPage > 1) this.serverPage--; this.authFailed(); return; }
                         if (res.ok) {
                             const data = await res.json();
@@ -1323,10 +1282,12 @@
                             }
                             if (append) {
                                 const seen = new Set(this.allResults.map(x => x.id.provider + '::' + x.id.value));
+                                let added = 0;
                                 for (const it of data) {
                                     const k = it.id.provider + '::' + it.id.value;
-                                    if (!seen.has(k)) { seen.add(k); this.allResults.push(it); }
+                                    if (!seen.has(k)) { seen.add(k); this.allResults.push(it); added++; }
                                 }
+                                if (added === 0) this.hasMoreServerPages = false;
                             } else {
                                 this.allResults = data;
                             }

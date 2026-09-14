@@ -54,7 +54,14 @@ pub struct DlJob {
 }
 
 impl DlJob {
-    fn new(id: String, filename: String, kind: &str, url: String, headers: Vec<(String, String)>, quality: Option<u16>) -> Self {
+    fn new(
+        id: String,
+        filename: String,
+        kind: &str,
+        url: String,
+        headers: Vec<(String, String)>,
+        quality: Option<u16>,
+    ) -> Self {
         Self {
             id,
             filename,
@@ -163,7 +170,9 @@ impl DlStore {
             let mut guard = 0;
             while order.len() > MAX_JOBS && guard < MAX_JOBS + 4 {
                 guard += 1;
-                let Some(old_id) = order.pop_front() else { break };
+                let Some(old_id) = order.pop_front() else {
+                    break;
+                };
                 let terminal = jobs.get(&old_id).map(|o| o.is_terminal()).unwrap_or(true);
                 if !terminal {
                     order.push_back(old_id);
@@ -185,7 +194,10 @@ impl DlStore {
     pub async fn list(&self) -> Vec<DlJob> {
         let order = self.order.read().await;
         let jobs = self.inner.read().await;
-        order.iter().filter_map(|id| jobs.get(id).cloned()).collect()
+        order
+            .iter()
+            .filter_map(|id| jobs.get(id).cloned())
+            .collect()
     }
 
     pub async fn get(&self, id: &str) -> Option<DlJob> {
@@ -314,7 +326,9 @@ impl Speedo {
 }
 
 async fn run_job(store: DlStore, http: reqwest::Client, id: String) {
-    let Some(job) = store.get(&id).await else { return };
+    let Some(job) = store.get(&id).await else {
+        return;
+    };
     store
         .mutate(&id, |j| {
             j.status = "downloading".to_string();
@@ -328,18 +342,22 @@ async fn run_job(store: DlStore, http: reqwest::Client, id: String) {
     match result {
         Ok(()) => {
             // Worker sets completed itself (filename may have changed, e.g. .ts fallback).
-            store.mutate(&id, |j| {
-                if !j.is_terminal() {
-                    j.status = "completed".to_string();
-                    j.progress = 100.0;
-                }
-            }).await;
+            store
+                .mutate(&id, |j| {
+                    if !j.is_terminal() {
+                        j.status = "completed".to_string();
+                        j.progress = 100.0;
+                    }
+                })
+                .await;
         }
         Err(e) if e == "cancelled" => {
-            store.mutate(&id, |j| {
-                j.status = "cancelled".to_string();
-                j.error = None;
-            }).await;
+            store
+                .mutate(&id, |j| {
+                    j.status = "cancelled".to_string();
+                    j.error = None;
+                })
+                .await;
         }
         Err(e) => {
             // Drop partial HLS segments on failure so failed jobs don't leak
@@ -349,10 +367,12 @@ async fn run_job(store: DlStore, http: reqwest::Client, id: String) {
                     let _ = std::fs::remove_file(store.dir().join(format!("{id}.ts")));
                 }
             }
-            store.mutate(&id, |j| {
-                j.status = "failed".to_string();
-                j.error = Some(e);
-            }).await;
+            store
+                .mutate(&id, |j| {
+                    j.status = "failed".to_string();
+                    j.error = Some(e);
+                })
+                .await;
         }
     }
 }
@@ -385,9 +405,15 @@ async fn run_direct(store: &DlStore, http: &reqwest::Client, id: &str) -> Result
         .to_ascii_lowercase();
     if ct.contains("mpegurl") || ct.contains("dash+xml") {
         // Hand over to the right engine inside the same job.
-        store.mutate(id, |j| {
-            j.kind = if ct.contains("mpegurl") { "hls".to_string() } else { "dash".to_string() };
-        }).await;
+        store
+            .mutate(id, |j| {
+                j.kind = if ct.contains("mpegurl") {
+                    "hls".to_string()
+                } else {
+                    "dash".to_string()
+                };
+            })
+            .await;
         drop(res);
         let kind = store.get(id).await.map(|j| j.kind).unwrap_or_default();
         if kind == "hls" {
@@ -404,14 +430,20 @@ async fn run_direct(store: &DlStore, http: &reqwest::Client, id: &str) -> Result
     // Refresh extension from real content-type when we guessed wrong.
     if total.is_some() || !ct.is_empty() {
         let ext = infer_download_extension(final_url.as_str(), Some(&ct));
-        store.mutate(id, |j| {
-            if let Some(dot) = j.filename.rfind('.') {
-                j.filename.replace_range(dot + 1.., ext);
-            }
-            j.total = total;
-        }).await;
+        store
+            .mutate(id, |j| {
+                if let Some(dot) = j.filename.rfind('.') {
+                    j.filename.replace_range(dot + 1.., ext);
+                }
+                j.total = total;
+            })
+            .await;
     } else {
-        store.mutate(id, |j| { j.total = total; }).await;
+        store
+            .mutate(id, |j| {
+                j.total = total;
+            })
+            .await;
     }
 
     let dest = store.file_path(&store.get(id).await.unwrap());
@@ -426,7 +458,12 @@ async fn run_direct(store: &DlStore, http: &reqwest::Client, id: &str) -> Result
     use futures::StreamExt;
     // 60s idle watchdog like the sidecar proxy.
     loop {
-        if store.get(id).await.map(|j| j.cancel.load(Ordering::Relaxed)).unwrap_or(true) {
+        if store
+            .get(id)
+            .await
+            .map(|j| j.cancel.load(Ordering::Relaxed))
+            .unwrap_or(true)
+        {
             drop(file);
             let _ = tokio::fs::remove_file(&part).await;
             return Err("cancelled".to_string());
@@ -442,18 +479,34 @@ async fn run_direct(store: &DlStore, http: &reqwest::Client, id: &str) -> Result
         downloaded += bytes.len() as u64;
         if let Some((bps, _)) = speedo.push(downloaded) {
             let eta = total.filter(|t| *t > downloaded).map(|t| {
-                if bps > 1.0 { ((t - downloaded) as f64 / bps) as u64 } else { 0 }
+                if bps > 1.0 {
+                    ((t - downloaded) as f64 / bps) as u64
+                } else {
+                    0
+                }
             });
-            let pct = total.map(|t| if t > 0 { downloaded as f64 / t as f64 * 100.0 } else { 0.0 });
-            store.mutate(id, |j| {
-                j.downloaded = downloaded;
-                j.speed_bps = bps;
-                j.eta_secs = eta;
-                if let Some(p) = pct { j.progress = p.min(100.0); }
-            }).await;
+            let pct = total.map(|t| {
+                if t > 0 {
+                    downloaded as f64 / t as f64 * 100.0
+                } else {
+                    0.0
+                }
+            });
+            store
+                .mutate(id, |j| {
+                    j.downloaded = downloaded;
+                    j.speed_bps = bps;
+                    j.eta_secs = eta;
+                    if let Some(p) = pct {
+                        j.progress = p.min(100.0);
+                    }
+                })
+                .await;
         }
     }
-    file.flush().await.map_err(|e| format!("flush failed: {e}"))?;
+    file.flush()
+        .await
+        .map_err(|e| format!("flush failed: {e}"))?;
     drop(file);
     if let Some(t) = total {
         if downloaded != t {
@@ -464,13 +517,15 @@ async fn run_direct(store: &DlStore, http: &reqwest::Client, id: &str) -> Result
     tokio::fs::rename(&part, &dest)
         .await
         .map_err(|e| format!("finalize failed: {e}"))?;
-    store.mutate(id, |j| {
-        j.downloaded = downloaded;
-        j.speed_bps = 0.0;
-        j.eta_secs = Some(0);
-        j.progress = 100.0;
-        j.status = "completed".to_string();
-    }).await;
+    store
+        .mutate(id, |j| {
+            j.downloaded = downloaded;
+            j.speed_bps = 0.0;
+            j.eta_secs = Some(0);
+            j.progress = 100.0;
+            j.status = "completed".to_string();
+        })
+        .await;
     Ok(())
 }
 
@@ -508,7 +563,9 @@ fn pick_hls_variant(master: &str, quality: Option<u16>) -> Option<String> {
                         if let Some(best_diff) = best_height_diff {
                             if diff < best_diff {
                                 true
-                            } else { diff == best_diff && bw > best_bw }
+                            } else {
+                                diff == best_diff && bw > best_bw
+                            }
                         } else {
                             true
                         }
@@ -551,7 +608,10 @@ async fn fetch_text(
             return Err("playlist too large".to_string());
         }
     }
-    let bytes = res.bytes().await.map_err(|e| format!("playlist read failed: {e}"))?;
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|e| format!("playlist read failed: {e}"))?;
     if bytes.len() > MAX_MANIFEST_BYTES {
         return Err("playlist too large".to_string());
     }
@@ -569,13 +629,18 @@ async fn run_hls(store: &DlStore, http: &reqwest::Client, id: &str) -> Result<()
     let mut text = fetch_text(http, &job.headers, &base).await?;
     // Master playlist? descend into the best variant (same auth headers).
     if text.contains("#EXT-X-STREAM-INF") {
-        let rel = pick_hls_variant(&text, job.quality).ok_or("cannot find variant playlist".to_string())?;
+        let rel = pick_hls_variant(&text, job.quality)
+            .ok_or("cannot find variant playlist".to_string())?;
         let variant_url = base.join(&rel).map_err(|_| "bad variant url".to_string())?;
         if super::is_blocked_host(variant_url.host_str().unwrap_or("")) {
             return Err("blocked destination after redirect".to_string());
         }
         text = fetch_text(http, &job.headers, &variant_url).await?;
-        store.mutate(id, |j| { j.progress = 2.0; }).await;
+        store
+            .mutate(id, |j| {
+                j.progress = 2.0;
+            })
+            .await;
         let base2 = variant_url;
         return run_hls_media(store, http, id, &text, &base2).await;
     }
@@ -629,7 +694,10 @@ async fn run_hls_media(
     for line in playlist.lines() {
         let t = line.trim();
         if t.starts_with("#EXT-X-KEY") && !t.contains("METHOD=NONE") {
-            return Err("this HLS stream is encrypted — open it with Play in browser or VLC instead".to_string());
+            return Err(
+                "this HLS stream is encrypted — open it with Play in browser or VLC instead"
+                    .to_string(),
+            );
         }
     }
     let mut segs: Vec<url::Url> = vec![];
@@ -662,7 +730,12 @@ async fn run_hls_media(
     let mut speedo = Speedo::new();
     let headers_snapshot = store.get(id).await.map(|j| j.headers).unwrap_or_default();
     for (i, seg_url) in segs.iter().enumerate() {
-        if store.get(id).await.map(|j| j.cancel.load(Ordering::Relaxed)).unwrap_or(true) {
+        if store
+            .get(id)
+            .await
+            .map(|j| j.cancel.load(Ordering::Relaxed))
+            .unwrap_or(true)
+        {
             drop(out);
             let _ = tokio::fs::remove_file(&ts_path).await;
             return Err("cancelled".to_string());
@@ -675,7 +748,12 @@ async fn run_hls_media(
                 // Exponential backoff before retrying the same segment.
                 tokio::time::sleep(Duration::from_secs(1 << (attempt - 1).min(3))).await;
             }
-            if store.get(id).await.map(|j| j.cancel.load(Ordering::Relaxed)).unwrap_or(true) {
+            if store
+                .get(id)
+                .await
+                .map(|j| j.cancel.load(Ordering::Relaxed))
+                .unwrap_or(true)
+            {
                 drop(out);
                 let _ = tokio::fs::remove_file(&ts_path).await;
                 return Err("cancelled".to_string());
@@ -704,32 +782,44 @@ async fn run_hls_media(
                 let done_frac = (i as f64 + 0.5) / total_segs as f64;
                 // Reserve last 10% for remux.
                 let pct = (done_frac * 90.0).min(90.0);
-                store.mutate(id, |j| {
-                    j.downloaded = downloaded;
-                    j.speed_bps = bps;
-                    j.progress = pct;
-                    // ETA from byte-rate once we have a meaningful sample.
-                    if bps > 1.0 && done_frac > 0.02 {
-                        let est_total = downloaded as f64 / done_frac;
-                        j.eta_secs = Some(((est_total - downloaded as f64) / bps).max(0.0) as u64);
-                    } else {
-                        j.eta_secs = None;
-                    }
-                }).await;
+                store
+                    .mutate(id, |j| {
+                        j.downloaded = downloaded;
+                        j.speed_bps = bps;
+                        j.progress = pct;
+                        // ETA from byte-rate once we have a meaningful sample.
+                        if bps > 1.0 && done_frac > 0.02 {
+                            let est_total = downloaded as f64 / done_frac;
+                            j.eta_secs =
+                                Some(((est_total - downloaded as f64) / bps).max(0.0) as u64);
+                        } else {
+                            j.eta_secs = None;
+                        }
+                    })
+                    .await;
             }
         }
         // Per-segment progress bump even when speedo throttles.
         let pct = ((i + 1) as f64 / total_segs as f64 * 90.0).min(90.0);
-        store.mutate(id, |j| {
-            j.downloaded = downloaded;
-            j.progress = pct;
-        }).await;
+        store
+            .mutate(id, |j| {
+                j.downloaded = downloaded;
+                j.progress = pct;
+            })
+            .await;
     }
-    out.flush().await.map_err(|e| format!("flush failed: {e}"))?;
+    out.flush()
+        .await
+        .map_err(|e| format!("flush failed: {e}"))?;
     drop(out);
 
     // Remux .ts -> .mp4 (stream copy, fast). Fallback: keep .ts.
-    store.mutate(id, |j| { j.status = "merging".to_string(); j.progress = 92.0; }).await;
+    store
+        .mutate(id, |j| {
+            j.status = "merging".to_string();
+            j.progress = 92.0;
+        })
+        .await;
     let mp4_name = {
         let j = store.get(id).await.unwrap();
         j.filename
@@ -738,41 +828,59 @@ async fn run_hls_media(
     match remux_ts_to_mp4(&ts_path, &mp4_path).await {
         Ok(()) => {
             let _ = tokio::fs::remove_file(&ts_path).await;
-            let size = tokio::fs::metadata(&mp4_path).await.map(|m| m.len()).unwrap_or(downloaded);
-            store.mutate(id, |j| {
-                j.downloaded = size;
-                j.total = Some(size);
-                j.speed_bps = 0.0;
-                j.eta_secs = Some(0);
-                j.progress = 100.0;
-                j.status = "completed".to_string();
-            }).await;
+            let size = tokio::fs::metadata(&mp4_path)
+                .await
+                .map(|m| m.len())
+                .unwrap_or(downloaded);
+            store
+                .mutate(id, |j| {
+                    j.downloaded = size;
+                    j.total = Some(size);
+                    j.speed_bps = 0.0;
+                    j.eta_secs = Some(0);
+                    j.progress = 100.0;
+                    j.status = "completed".to_string();
+                })
+                .await;
         }
         Err(e) => {
             // ffmpeg missing/failed: deliver the .ts itself.
             let ts_name = {
                 let j = store.get(id).await.unwrap();
-                let stem = j.filename.rsplit_once('.').map(|(s, _)| s).unwrap_or(&j.filename);
+                let stem = j
+                    .filename
+                    .rsplit_once('.')
+                    .map(|(s, _)| s)
+                    .unwrap_or(&j.filename);
                 format!("{stem}.ts")
             };
             let ts_final = store.dir().join(&ts_name);
             let _ = tokio::fs::rename(&ts_path, &ts_final).await;
-            let size = tokio::fs::metadata(&ts_final).await.map(|m| m.len()).unwrap_or(downloaded);
-            store.mutate(id, |j| {
-                j.filename = ts_name.clone();
-                j.downloaded = size;
-                j.total = Some(size);
-                j.progress = 100.0;
-                j.status = "completed".to_string();
-                j.error = Some(format!("saved as .ts ({e})"));
-            }).await;
+            let size = tokio::fs::metadata(&ts_final)
+                .await
+                .map(|m| m.len())
+                .unwrap_or(downloaded);
+            store
+                .mutate(id, |j| {
+                    j.filename = ts_name.clone();
+                    j.downloaded = size;
+                    j.total = Some(size);
+                    j.progress = 100.0;
+                    j.status = "completed".to_string();
+                    j.error = Some(format!("saved as .ts ({e})"));
+                })
+                .await;
         }
     }
     Ok(())
 }
 
 fn find_on_path(name: &str) -> Option<String> {
-    let exe = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let exe = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
     if let Some(paths) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&paths) {
             let cand = dir.join(&exe);
@@ -793,9 +901,8 @@ fn find_on_path(name: &str) -> Option<String> {
 }
 
 async fn remux_ts_to_mp4(ts: &std::path::Path, mp4: &std::path::Path) -> Result<(), String> {
-    let ffmpeg = find_on_path("ffmpeg").ok_or(
-        "ffmpeg not found (install with: winget install Gyan.FFmpeg)".to_string(),
-    )?;
+    let ffmpeg = find_on_path("ffmpeg")
+        .ok_or("ffmpeg not found (install with: winget install Gyan.FFmpeg)".to_string())?;
     let mut cmd = tokio::process::Command::new(ffmpeg);
     cmd.arg("-y")
         .arg("-i")
@@ -819,7 +926,9 @@ async fn remux_ts_to_mp4(ts: &std::path::Path, mp4: &std::path::Path) -> Result<
     if status.success() && mp4.is_file() {
         Ok(())
     } else {
-        Err(format!("ffmpeg exited with {status} (is ffmpeg installed?)"))
+        Err(format!(
+            "ffmpeg exited with {status} (is ffmpeg installed?)"
+        ))
     }
 }
 
@@ -900,7 +1009,8 @@ async fn run_dash(store: &DlStore, _http: &reqwest::Client, id: &str) -> Result<
     };
     let ytdlp = find_on_path("yt-dlp").ok_or_else(|| {
         if cfg!(target_os = "windows") {
-            "DASH download needs yt-dlp. Install it with: winget install yt-dlp.yt-dlp Gyan.FFmpeg".to_string()
+            "DASH download needs yt-dlp. Install it with: winget install yt-dlp.yt-dlp Gyan.FFmpeg"
+                .to_string()
         } else {
             "DASH download needs yt-dlp + ffmpeg installed on the server.".to_string()
         }
@@ -937,7 +1047,9 @@ async fn run_dash(store: &DlStore, _http: &reqwest::Client, id: &str) -> Result<
     cmd.kill_on_drop(true);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::null());
-    let mut child = cmd.spawn().map_err(|e| format!("failed to start yt-dlp: {e}"))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to start yt-dlp: {e}"))?;
     let mut stream_index: usize = 0;
     let mut max_progress: f64 = 0.0;
     let mut last_emit = Instant::now() - Duration::from_secs(1);
@@ -945,7 +1057,12 @@ async fn run_dash(store: &DlStore, _http: &reqwest::Client, id: &str) -> Result<
         use tokio::io::{AsyncBufReadExt, BufReader};
         let mut lines = BufReader::new(stdout).lines();
         loop {
-            if store.get(id).await.map(|j| j.cancel.load(Ordering::Relaxed)).unwrap_or(true) {
+            if store
+                .get(id)
+                .await
+                .map(|j| j.cancel.load(Ordering::Relaxed))
+                .unwrap_or(true)
+            {
                 let _ = child.kill().await;
                 cleanup_ytdlp_part(&dest).await;
                 return Err("cancelled".to_string());
@@ -995,9 +1112,17 @@ async fn run_dash(store: &DlStore, _http: &reqwest::Client, id: &str) -> Result<
             }
         }
     }
-    let status = child.wait().await.map_err(|e| format!("yt-dlp wait failed: {e}"))?;
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("yt-dlp wait failed: {e}"))?;
     if !status.success() {
-        if store.get(id).await.map(|j| j.cancel.load(Ordering::Relaxed)).unwrap_or(false) {
+        if store
+            .get(id)
+            .await
+            .map(|j| j.cancel.load(Ordering::Relaxed))
+            .unwrap_or(false)
+        {
             cleanup_ytdlp_part(&dest).await;
             return Err("cancelled".to_string());
         }
@@ -1008,24 +1133,30 @@ async fn run_dash(store: &DlStore, _http: &reqwest::Client, id: &str) -> Result<
     let final_path = if dest.is_file() {
         dest.clone()
     } else {
-        find_sibling_output(store.dir(), id, &job.filename).await
+        find_sibling_output(store.dir(), id, &job.filename)
+            .await
             .ok_or("yt-dlp finished but the file is missing".to_string())?
     };
-    let size = tokio::fs::metadata(&final_path).await.map(|m| m.len()).unwrap_or(0);
+    let size = tokio::fs::metadata(&final_path)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
     let final_name = final_path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or(job.filename.clone());
     cleanup_ytdlp_part(&dest).await;
-    store.mutate(id, |j| {
-        j.filename = final_name;
-        j.downloaded = size;
-        j.total = Some(size);
-        j.speed_bps = 0.0;
-        j.eta_secs = Some(0);
-        j.progress = 100.0;
-        j.status = "completed".to_string();
-    }).await;
+    store
+        .mutate(id, |j| {
+            j.filename = final_name;
+            j.downloaded = size;
+            j.total = Some(size);
+            j.speed_bps = 0.0;
+            j.eta_secs = Some(0);
+            j.progress = 100.0;
+            j.status = "completed".to_string();
+        })
+        .await;
     Ok(())
 }
 
@@ -1042,11 +1173,13 @@ async fn poll_dest_size(store: &DlStore, id: &str, dest: &std::path::Path) {
         }
     }
     if best > 0 {
-        store.mutate(id, |j| {
-            if best > j.downloaded {
-                j.downloaded = best;
-            }
-        }).await;
+        store
+            .mutate(id, |j| {
+                if best > j.downloaded {
+                    j.downloaded = best;
+                }
+            })
+            .await;
     }
 }
 
