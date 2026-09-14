@@ -432,23 +432,7 @@
             </div>
         </div>
 
-        <!-- Quality Picker Modal -->
-        <div v-if="showQualityPicker" class="fixed inset-0 z-[210] flex items-center justify-center p-4 modal-overlay overflow-y-auto backdrop-blur-md transition-opacity duration-300" @click.self="showQualityPicker = false; pendingAction = null">
-            <div class="bg-[#141414] w-full max-w-sm rounded-xl p-6 relative text-white flex flex-col shadow-2xl border border-gray-700 animate-[scaleIn_0.3s_ease-out]">
-                <button @click="showQualityPicker = false; pendingAction = null" class="absolute top-4 right-4 z-20 text-gray-400 hover:text-white transition-all">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-                <h2 class="text-2xl font-bold mb-4">Select Quality</h2>
-                
-                <div v-if="qualityPickerLoading" class="flex justify-center p-8">
-                    <i class="fas fa-spinner fa-spin text-3xl text-gray-500"></i>
-                </div>
-                <div v-else class="space-y-2">
-                    <button v-for="q in availableQualities" :key="q" @click="confirmQuality(q)" class="w-full text-left px-4 py-3 bg-[#222] hover:bg-[#333] border border-gray-700 hover:border-gray-500 rounded font-bold transition-all flex justify-between items-center">
-                        {{ q }} <i class="fas fa-chevron-right text-sm text-gray-500"></i>
-                    </button>
-                </div>
-            </div>
+        
         </div>
 
 
@@ -606,14 +590,16 @@
                                     <div v-if="stream.mirrors && stream.mirrors.length > 1" class="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2 mb-1">
                                         <button v-for="(m, mi) in stream.mirrors" :key="mi" @click="selectedMirror[idx] = mi" :class="['btn-touch flex-none chip !text-[.65rem] !py-1.5', (selectedMirror[idx] || 0) === mi ? '!bg-white !text-black !border-white' : 'hover:border-gray-300']">{{ m.label || ('Source ' + (mi + 1)) }}</button>
                                     </div>
+                                      <div v-if="streamQualities[idx] && streamQualities[idx].length > 1" class="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2 mb-1 items-center">
+                                          <span class="text-xs text-gray-400 font-bold mr-1">Quality:</span>
+                                          <button v-for="q in streamQualities[idx]" :key="q" @click="$set(selectedQuality, idx, q)" :class="['btn-touch flex-none chip !text-[.65rem] !py-1.5', (selectedQuality[idx] || streamQualities[idx][0]) === q ? '!bg-white !text-black !border-white' : 'hover:border-gray-300']">{{ q === 'Auto' ? 'Auto' : q + 'p' }}</button>
+                                      </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <button @click="promptQuality(stream, activeMirror(stream, idx), idx, 'play')" class="btn-touch flex-1 sm:flex-none bg-white text-black hover:bg-gray-200 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
-                                            <i class="fas fa-play mr-1"></i> Play
+                                        
+                                        <button @click="openVlcModal(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-white text-black hover:bg-gray-200 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
+                                            <i :class="isMobile ? 'fas fa-external-link-alt mr-1' : 'fas fa-desktop mr-1'"></i> Play
                                         </button>
-                                        <button @click="openVlcModal(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
-                                            <i :class="isMobile ? 'fas fa-external-link-alt mr-1' : 'fas fa-desktop mr-1'"></i> {{ isMobile ? 'Play in App' : 'VLC' }}
-                                        </button>
-                                        <button @click="promptQuality(stream, activeMirror(stream, idx), idx, 'download')" :disabled="downloadingIdx === idx" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md disabled:opacity-50 disabled:cursor-wait">
+                                        <button @click="downloadStream(stream, activeMirror(stream, idx), idx, (selectedQuality[idx] === 'Auto' ? null : selectedQuality[idx]))" :disabled="downloadingIdx === idx" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md disabled:opacity-50 disabled:cursor-wait">
                                             <i :class="['mr-1', downloadingIdx === idx ? 'fas fa-spinner fa-spin' : 'fas fa-download']"></i>
                                             {{ downloadingIdx === idx ? 'Saving...' : 'Download' }}
                                         </button>
@@ -622,21 +608,7 @@
                             </div>
                         </div>
 
-                        <!-- Web Player -->
-                        <div v-if="browserPlayUrl" class="mt-4">
-                            <div v-if="playerError" class="text-center py-8 px-4 bg-[#222] rounded-xl border border-red-900 mb-3">
-                                <i class="fas fa-circle-exclamation text-3xl text-red-500 mb-2"></i>
-                                <p class="font-bold text-sm mb-1">Playback failed</p>
-                                <p class="text-gray-400 text-xs mb-3">{{ playerError }}</p>
-                                <button @click="retryPlayback" class="btn-touch bg-white text-black px-5 py-2 rounded font-bold text-sm">Retry</button>
-                            </div>
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg md:text-xl font-bold">Now Playing</h3>
-                                <button @click="closePlayer" class="text-gray-400 hover:text-white text-sm"><i class="fas fa-times mr-1"></i> Close</button>
-                            </div>
-                            <video id="web-video" crossorigin playsinline playsinline webkit-playsinline preload="metadata" class="w-full rounded-lg bg-black shadow-2xl aspect-video"></video>
                         </div>
-                    </div>
 
                     <div class="text-xs md:text-sm space-y-3 text-gray-400">
                         <div v-if="selectedItem.stars">
@@ -686,6 +658,8 @@
                 pendingAction: null,
                 activeSeason: null,
                 streams: [],
+                streamQualities: [],
+                selectedQuality: [],
                 browserPlayUrl: null,
                 hls: null,
                 dash: null,
@@ -1443,6 +1417,25 @@
                         if (res.ok) {
                             const data = await res.json();
                             this.streams = data || [];
+                              this.streamQualities = new Array(this.streams.length).fill([]);
+                              this.selectedQuality = new Array(this.streams.length).fill(null);
+                              
+                              // Background fetch qualities
+                              this.streams.forEach((st, idx) => {
+                                  const mirror = st.mirrors && st.mirrors.length > 0 ? st.mirrors[0] : st;
+                                  if (!mirror) return;
+                                  const proxyUrl = this.getProxyUrl(mirror);
+                                  fetch(proxyUrl).then(r => r.text()).then(text => {
+                                      let qs = [];
+                                      if (proxyUrl.includes('.mpd')) qs = [...text.matchAll(/height="(\d+)"/g)].map(m => parseInt(m[1], 10));
+                                      else if (proxyUrl.includes('.m3u8')) qs = [...text.matchAll(/RESOLUTION=\d+x(\d+)/g)].map(m => parseInt(m[1], 10));
+                                      qs = [...new Set(qs.filter(h => !isNaN(h)))].sort((a,b) => b - a);
+                                      if (qs.length > 0) {
+                                          this.$set(this.streamQualities, idx, [...qs, 'Auto']);
+                                          this.$set(this.selectedQuality, idx, qs[0]);
+                                      }
+                                  }).catch(() => {});
+                              });
                             this.selectedMirror = {};
                             if (this.streams.length === 0) {
                                 this.streamsError = 'No playable sources for this episode yet. Try another episode or provider.';
@@ -1459,10 +1452,13 @@
                     const headersStr = JSON.stringify(mirror.headers || []);
                     return `/api/proxy?url=${encodeURIComponent(mirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}`;
                 },
-                async openVlcModal(stream, mirror) {
+                async openVlcModal(stream, mirror, idx) {
                     if (!this.requireLogin()) return;
                     if(!mirror) return;
                     this.pendingVlcMirror = mirror;
+                    this.pendingVlcIdx = idx;
+                    this.executeVlcLaunch();
+                    return;
                     this.vlcSubtitles = [];
                     this.selectedSubtitle = null;
                     this.showVlcModal = true;
@@ -1489,6 +1485,8 @@
                         try {
                             this.launchingVlc = true;
                             let sidecarFetchUrl = `/api/sidecar?url=${encodeURIComponent(this.pendingVlcMirror.resolver_url)}&headers=${encodeURIComponent(headersStr)}`;
+                            const sq = this.selectedQuality[this.pendingVlcIdx];
+                            if (sq && sq !== 'Auto') sidecarFetchUrl += `&quality=${sq}`;
                             if (this.selectedSubtitle) {
                                 sidecarFetchUrl += `&sub=${encodeURIComponent(this.selectedSubtitle)}`;
                             }
@@ -1823,3 +1821,4 @@
     </script>
 </body>
 </html>
+
