@@ -224,7 +224,10 @@
                     </div>
                 </div>
                 
-                <div v-if="visibleResults.length === 0" class="text-center py-16 text-gray-400">
+                <div v-if="isPersonalCategory && loadingLists && visibleResults.length === 0" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                    <div v-for="i in 12" :key="'list-skel-'+i" class="aspect-[2/3] rounded-lg skeleton-shimmer"></div>
+                </div>
+                <div v-else-if="visibleResults.length === 0" class="text-center py-16 text-gray-400">
                     <i class="fas fa-film text-4xl mb-4 text-gray-600"></i>
                     <p class="text-lg font-semibold text-gray-300">{{ emptyStateTitle }}</p>
                     <p class="text-sm mt-1">{{ emptyStateHint }}</p>
@@ -338,11 +341,11 @@
                 </div>
 
                 <!-- Infinite scroll sentinel + skeletons -->
-                <div ref="infiniteSentinel" class="h-4"></div>
-                <div v-if="loadingMore" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 mt-4">
+                <div v-if="categoryHasMore" ref="infiniteSentinel" class="h-4"></div>
+                <div v-if="loadingMore && !isPersonalCategory" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 mt-4">
                     <div v-for="i in 12" :key="'inf-skel-'+i" class="aspect-[2/3] rounded-lg skeleton-shimmer"></div>
                 </div>
-                <div v-if="!hasMoreServerPages && visibleResults.length > 0" class="text-center text-gray-600 text-xs mt-8">You're all caught up.</div>
+                <div v-if="!categoryHasMore && visibleResults.length > 0" class="text-center text-gray-600 text-xs mt-8">You're all caught up.</div>
                 </div>
             </div>
         </main>
@@ -679,6 +682,7 @@
                 serverPage: 1,
                 hasMoreServerPages: true,
                 loadingMore: false,
+                loadingLists: false,
                 selectedProvider: 'moviebox',
                 providers: [
                     { id: 'moviebox', name: 'MovieBox' },
@@ -766,13 +770,27 @@
                 dlActiveCount() {
                     return this.dlJobs.filter(j => ['queued', 'downloading', 'merging'].includes(j.status)).length;
                 },
+                hasLibraryAccess() {
+                    // Dev mode (or logged-in prod): library is open. Only a
+                    // logged-out production user is gated.
+                    return !this.loginRequired || !!this.user;
+                },
+                isPersonalCategory() {
+                    return this.category === 'My List' || this.category === 'History';
+                },
+                categoryHasMore() {
+                    // Personal lists are finite local arrays: more means
+                    // unrevealed client-side items. Server feeds page remotely.
+                    if (this.isPersonalCategory) return this.visibleCount < this.filteredResults.length;
+                    return this.visibleCount < this.filteredResults.length || this.hasMoreServerPages;
+                },
                 emptyStateTitle() {
-                    if (this.category === 'My List') return this.user ? 'Your list is empty' : 'Sign in to see your list';
-                    if (this.category === 'History') return this.user ? 'No watch history yet' : 'Sign in to see history';
+                    if (this.category === 'My List') return this.hasLibraryAccess ? 'Your list is empty' : 'Sign in to see your list';
+                    if (this.category === 'History') return this.hasLibraryAccess ? 'No watch history yet' : 'Sign in to see history';
                     return 'No results found';
                 },
                 emptyStateHint() {
-                    if ((this.category === 'My List' || this.category === 'History') && !this.user) return 'Sign in with Google to sync across devices.';
+                    if ((this.category === 'My List' || this.category === 'History') && !this.hasLibraryAccess) return 'Sign in with Google to sync across devices.';
                     if (this.category === 'My List') return 'Tap + My List on any title to save it here.';
                     if (this.category === 'History') return 'Titles you play will appear here to resume.';
                     return 'Try another provider or clear filters.';
@@ -908,11 +926,14 @@
                     });
                 },
                 loadMoreInfinite() {
-                    if (this.loading || this.loadingMore || !this.hasMoreServerPages) return;
+                    if (this.loading || this.loadingMore) return;
+                    // Personal lists are finite: reveal client-side items only,
+                    // never hit the homepage feed from My List / History.
                     if (this.visibleCount < this.filteredResults.length) {
                         this.visibleCount += 30;
                         return;
                     }
+                    if (this.isPersonalCategory || !this.hasMoreServerPages) return;
                     this.fetchHomepage(true);
                 },
                 retryGrid() { this.gridError = null; this.fetchHomepage(false); },
@@ -968,19 +989,23 @@
                 },
                 async fetchHistory() {
                     if (this.loginRequired && !this.user) { this.historyItems = []; return; }
+                    this.loadingLists = true;
                     try {
                         const res = await fetch('/api/history');
                         if (res.status === 401) { this.historyItems = []; this.authFailed(); return; }
                         if (res.ok) { this.historyItems = await res.json(); this.fetchRecommendations(); }
                     } catch (e) {}
+                    finally { this.loadingLists = false; }
                 },
                 async fetchFavorites() {
                     if (this.loginRequired && !this.user) { this.favoriteItems = []; return; }
+                    this.loadingLists = true;
                     try {
                         const res = await fetch('/api/favorites');
                         if (res.status === 401) { this.favoriteItems = []; this.authFailed(); return; }
                         if (res.ok) { this.favoriteItems = await res.json(); this.fetchRecommendations(); }
                     } catch (e) {}
+                    finally { this.loadingLists = false; }
                 },
                 async fetchRecommendations() {
                     this.loadingRecs = true;
@@ -1244,9 +1269,12 @@
                     this.category = cat;
                     this.searchQuery = '';
                     this.searchActive = false;
+                    this.visibleCount = 30;
                     if (this.allResults.length === 0 || cat === 'Trending') {
                         this.fetchHomepage();
                     }
+                    // Re-observe: the sentinel remounts when the grid switches.
+                    this.$nextTick(() => this.setupInfinite());
                 },
                 closeDetails() {
                     this.selectedItem = null;
