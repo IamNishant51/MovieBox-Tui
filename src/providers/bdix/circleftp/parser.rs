@@ -57,6 +57,7 @@ pub fn circleftp_search_to_catalog(response: &CircleFtpSearchResponse) -> Vec<Ca
                 title,
                 media_type,
                 year,
+                genre: None,
                 poster_url,
                 season_count: None,
             });

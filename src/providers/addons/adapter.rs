@@ -70,6 +70,7 @@ pub fn meta_to_catalog_item(item: &MetaItem) -> CatalogItem {
             MediaType::Movie
         },
         year,
+        genre: None,
         poster_url,
         season_count: None,
     }

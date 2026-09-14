@@ -196,6 +196,7 @@ impl DhakaFlixClient {
                                                         title: clean_title,
                                                         year,
                                                         media_type: MediaType::Movie,
+                                                        genre: None,
                                                         poster_url: None,
                                                         season_count: None,
                                                     },

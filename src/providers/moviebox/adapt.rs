@@ -103,6 +103,11 @@ pub fn moviebox_subject_json_to_catalog_item(s: &serde_json::Value) -> Option<Ca
         .and_then(|u| u.as_str())
         .map(|u| u.to_string());
 
+    let genre = s
+        .get("genre")
+        .and_then(|g| g.as_str())
+        .map(|g| g.to_string());
+
     let season_count = s
         .get("season")
         .and_then(|sc| sc.as_u64())
@@ -116,6 +121,7 @@ pub fn moviebox_subject_json_to_catalog_item(s: &serde_json::Value) -> Option<Ca
         title,
         media_type,
         year,
+        genre,
         poster_url,
         season_count,
     })

@@ -76,6 +76,7 @@ pub fn parse_search(base: &Url, html: &str) -> Result<Vec<CatalogItem>, FourKHdH
             title: item_title,
             media_type,
             year,
+            genre: None,
             poster_url,
             season_count: parse_season_count(&meta_text),
         });

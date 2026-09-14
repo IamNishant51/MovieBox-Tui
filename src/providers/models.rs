@@ -91,6 +91,7 @@ pub struct CatalogItem {
     pub title: String,
     pub media_type: MediaType,
     pub year: Option<String>,
+    pub genre: Option<String>,
     pub poster_url: Option<String>,
     pub season_count: Option<usize>,
 }
