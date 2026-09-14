@@ -508,11 +508,7 @@ fn pick_hls_variant(master: &str, quality: Option<u16>) -> Option<String> {
                         if let Some(best_diff) = best_height_diff {
                             if diff < best_diff {
                                 true
-                            } else if diff == best_diff && bw > best_bw {
-                                true
-                            } else {
-                                false
-                            }
+                            } else { diff == best_diff && bw > best_bw }
                         } else {
                             true
                         }

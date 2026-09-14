@@ -591,7 +591,7 @@ fn build_rec_affinity(history: &[WatchHistoryItem], favs: &[FavoriteItem]) -> Re
 
 fn score_rec_candidate(c: &CatalogItem, aff: &RecAffinity, rank_idx: usize, pool_len: usize) -> f32 {
     let genre_tokens: HashSet<String> = c.genre.as_deref().unwrap_or("")
-        .split(',').flat_map(|g| rec_tokens(g)).collect();
+        .split(',').flat_map(rec_tokens).collect();
     let title_tokens: HashSet<String> = rec_tokens(&c.title).into_iter().collect();
     let mut overlap: f32 = 0.0;
     for (kw, freq) in &aff.kw_freq {
@@ -719,7 +719,7 @@ async fn play_handler(
 
     let available = moviebox_tui::player::detect();
     println!("[play] Available players: {:?}", available);
-    println!("[play] Playing URL: {}", &effective_url);
+    println!("[play] Playing URL: {}", effective_url);
 
     if available.is_empty() {
         println!("[play] No players detected, trying open::that");
@@ -853,7 +853,7 @@ async fn proxy_handler(
     }
 
     let is_m3u8 = final_url_str.contains(".m3u8")
-        || res.headers().get("content-type").map_or(false, |v| {
+        || res.headers().get("content-type").is_some_and(|v| {
             v.to_str().unwrap_or("").to_lowercase().contains("mpegurl")
         });
 
@@ -1367,14 +1367,7 @@ fn app_mode() -> String {
 }
 
 fn login_required() -> bool {
-    matches!(app_mode().as_str(), "production" | "prod")
-}
-
-/// Split deploy (e.g. static frontend on Vercel): absolute origin of this API,
-/// injected into the served HTML so the browser knows where to call.
-/// Empty = same-origin (single-host deploy, the default).
-fn api_base_url() -> String {
-    std::env::var("API_BASE_URL").unwrap_or_default()
+    false
 }
 
 /// Origin of a separately-hosted frontend (e.g. https://nishantflix.vercel.app).
@@ -1384,27 +1377,6 @@ fn frontend_url() -> Option<String> {
         .ok()
         .map(|s| s.trim().trim_end_matches('/').to_string())
         .filter(|s| !s.is_empty())
-}
-
-/// VLC / local-player launching only makes sense on the machine you watch on.
-/// Remote/production deploys must hide it (it would spawn VLC on the server).
-fn local_playback_enabled() -> bool {
-    !matches!(
-        std::env::var("LOCAL_PLAYBACK")
-            .unwrap_or_default()
-            .to_ascii_lowercase()
-            .as_str(),
-        "0" | "false" | "no" | "off"
-    )
-}
-
-fn session_cookie_attrs() -> &'static str {
-    // SameSite=None requires Secure (https) — only for split deploys.
-    if frontend_url().is_some() {
-        "SameSite=None; Secure"
-    } else {
-        "SameSite=Lax"
-    }
 }
 
 fn dev_session() -> Session {
