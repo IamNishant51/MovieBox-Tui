@@ -337,6 +337,13 @@ async fn run_job(store: DlStore, http: reqwest::Client, id: String) {
             }).await;
         }
         Err(e) => {
+            // Drop partial HLS segments on failure so failed jobs don't leak
+            // hundreds of MB (cancel/retry paths already clean their own).
+            if let Some(job) = store.get(&id).await {
+                if job.kind == "hls" {
+                    let _ = std::fs::remove_file(store.dir().join(format!("{id}.ts")));
+                }
+            }
             store.mutate(&id, |j| {
                 j.status = "failed".to_string();
                 j.error = Some(e);
@@ -539,6 +546,42 @@ async fn run_hls(store: &DlStore, http: &reqwest::Client, id: &str) -> Result<()
     run_hls_media(store, http, id, &text, &base).await
 }
 
+/// Fetch one HLS segment into the open output file. Returns bytes written.
+/// Single attempt — callers retry with backoff (see SEG_ATTEMPTS).
+async fn fetch_one_segment(
+    http: &reqwest::Client,
+    headers: &[(String, String)],
+    seg_url: &url::Url,
+    _index: usize,
+    out: &mut tokio::fs::File,
+) -> Result<u64, String> {
+    use tokio::io::AsyncWriteExt;
+    let res = http
+        .get(seg_url.clone())
+        .headers(build_req_headers(headers))
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !res.status().is_success() {
+        return Err(format!("server replied {}", res.status()));
+    }
+    let mut stream = res.bytes_stream();
+    use futures::StreamExt;
+    let mut wrote: u64 = 0;
+    loop {
+        let chunk = tokio::time::timeout(Duration::from_secs(60), stream.next())
+            .await
+            .map_err(|_| "stalled (60s without data)".to_string())?;
+        let Some(chunk) = chunk else { break };
+        let bytes = chunk.map_err(|e| format!("body error: {e}"))?;
+        out.write_all(&bytes)
+            .await
+            .map_err(|e| format!("write failed: {e}"))?;
+        wrote += bytes.len() as u64;
+    }
+    Ok(wrote)
+}
+
 async fn run_hls_media(
     store: &DlStore,
     http: &reqwest::Client,
@@ -571,6 +614,9 @@ async fn run_hls_media(
         return Err("playlist has no segments".to_string());
     }
     let total_segs = segs.len();
+    // Per-segment retries mirror crate::download::MAX_ATTEMPTS semantics:
+    // transient CDN blips must not kill a 500MB download.
+    const SEG_ATTEMPTS: u32 = 4;
     let ts_path = store.dir().join(format!("{id}.ts"));
     let mut out = tokio::fs::File::create(&ts_path)
         .await
@@ -585,27 +631,39 @@ async fn run_hls_media(
             let _ = tokio::fs::remove_file(&ts_path).await;
             return Err("cancelled".to_string());
         }
-        let res = http
-            .get(seg_url.clone())
-            .headers(build_req_headers(&headers_snapshot))
-            .send()
-            .await
-            .map_err(|e| format!("segment {} failed: {e}", i + 1))?;
-        if !res.status().is_success() {
-            return Err(format!("segment {} server replied {}", i + 1, res.status()));
+        let mut seg_bytes: u64 = 0;
+        let mut last_err = String::new();
+        let mut ok = false;
+        for attempt in 0..SEG_ATTEMPTS {
+            if attempt > 0 {
+                // Exponential backoff before retrying the same segment.
+                tokio::time::sleep(Duration::from_secs(1 << (attempt - 1).min(3))).await;
+            }
+            if store.get(id).await.map(|j| j.cancel.load(Ordering::Relaxed)).unwrap_or(true) {
+                drop(out);
+                let _ = tokio::fs::remove_file(&ts_path).await;
+                return Err("cancelled".to_string());
+            }
+            match fetch_one_segment(http, &headers_snapshot, seg_url, i, &mut out).await {
+                Ok(n) => {
+                    seg_bytes = n;
+                    ok = true;
+                    break;
+                }
+                Err(e) => {
+                    last_err = e;
+                }
+            }
         }
-        let mut stream = res.bytes_stream();
-        use futures::StreamExt;
-        loop {
-            let chunk = tokio::time::timeout(Duration::from_secs(60), stream.next())
-                .await
-                .map_err(|_| format!("segment {} stalled", i + 1))?;
-            let Some(chunk) = chunk else { break };
-            let bytes = chunk.map_err(|e| format!("segment {} error: {e}", i + 1))?;
-            out.write_all(&bytes)
-                .await
-                .map_err(|e| format!("write failed: {e}"))?;
-            downloaded += bytes.len() as u64;
+        if !ok {
+            drop(out);
+            return Err(format!(
+                "segment {} failed after {SEG_ATTEMPTS} tries ({last_err}) — retry the download to resume",
+                i + 1
+            ));
+        }
+        {
+            downloaded += seg_bytes;
             if let Some((bps, _)) = speedo.push(downloaded) {
                 let done_frac = (i as f64 + 0.5) / total_segs as f64;
                 // Reserve last 10% for remux.
