@@ -92,12 +92,12 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <div class="relative">
-                        <input v-model="searchQuery" @input="onSuggestInput" @focus="onSuggestFocus" @blur="hideSuggestDelayed" @keydown.down.prevent="moveSuggest(1)" @keydown.up.prevent="moveSuggest(-1)" @keydown.enter="onSuggestEnter" @keydown.esc="showSuggest = false" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-black/70 border border-gray-600 text-white px-4 py-1.5 focus:outline-none focus:border-white transition-all', searchActive ? 'w-64 md:w-72 opacity-100' : 'w-0 opacity-0 border-none px-0']" />
-                        <button @click="toggleSearch" aria-label="Search" class="absolute right-2 top-1.5 text-white hover:text-gray-300">
+                    <div class="relative flex items-center">
+                        <input v-model="searchQuery" @input="onSuggestInput" @focus="onSuggestFocus" @blur="hideSuggestDelayed" @keydown.down.prevent="moveSuggest(1)" @keydown.up.prevent="moveSuggest(-1)" @keydown.enter="onSuggestEnter" @keydown.esc="showSuggest = false" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-black/70 border border-gray-600 text-white py-1.5 text-sm md:text-base rounded focus:outline-none focus:border-white transition-all min-h-[36px] absolute right-0 md:relative', searchActive ? 'w-48 sm:w-64 md:w-72 opacity-100 px-4 pr-10' : 'w-0 opacity-0 border-none px-0']" />
+                        <button @click="toggleSearch" aria-label="Search" :class="['text-white hover:text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all z-10', searchActive ? 'absolute right-0 text-gray-300' : 'relative']">
                             <i class="fas fa-search"></i>
                         </button>
-                        <div v-if="showSuggest && (suggestResults.length || suggestStrings.length)" class="suggest-panel absolute top-full mt-2 left-0 right-0 md:right-auto md:w-96 max-h-[60vh] overflow-y-auto bg-[#181818] border border-gray-700 rounded-lg shadow-2xl z-[60]">
+                        <div v-if="showSuggest && (suggestResults.length || suggestStrings.length)" class="suggest-panel absolute top-full mt-2 right-0 md:right-auto md:w-96 max-h-[60vh] overflow-y-auto bg-[#181818] border border-gray-700 rounded-lg shadow-2xl z-[60] w-64 sm:w-72">
                             <div v-for="(item, idx) in suggestResults" :key="item.id.value + idx" @mousedown.prevent="pickSuggest(item)" :class="['flex items-center gap-3 p-2 cursor-pointer', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">
                                 <img v-if="item.poster_url" :src="item.poster_url" class="w-10 h-14 object-cover rounded flex-none bg-gray-800" loading="lazy" />
                                 <div v-else class="w-10 h-14 flex-none flex items-center justify-center bg-gray-800 rounded text-gray-500"><i class="fas fa-image"></i></div>
@@ -186,10 +186,10 @@
             <!-- Grid Skeleton -->
             <div v-if="loading">
                 <h2 class="text-2xl font-bold mb-4">
-                    <div class="h-8 bg-gray-800 rounded w-48 animate-pulse"></div>
+                    <div class="h-8 bg-gray-800 rounded w-48 skeleton-shimmer"></div>
                 </h2>
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4">
-                    <div v-for="i in 12" :key="i" class="movie-card relative rounded-md overflow-hidden aspect-[2/3] bg-gray-800 animate-pulse">
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                    <div v-for="i in 12" :key="i" class="w-full relative rounded-md overflow-hidden aspect-[2/3] bg-[#262626] skeleton-shimmer">
                     </div>
                 </div>
             </div>
@@ -204,20 +204,20 @@
                 <div v-else>
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
                     <h2 class="text-xl md:text-2xl font-bold">{{ category }}</h2>
-                    <div class="flex flex-wrap items-center gap-3" v-if="category !== 'History' && category !== 'My List'">
-                        <select v-model="selectedProvider" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
+                    <div class="flex flex-wrap items-center gap-2 md:gap-3 w-full sm:w-auto" v-if="category !== 'History' && category !== 'My List'">
+                        <select v-model="selectedProvider" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
                             <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
                         </select>
-                        <select v-model="filterType" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
+                        <select v-model="filterType" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
                             <option value="">All Types</option>
                             <option value="movie">Movies</option>
                             <option value="series">TV Shows</option>
                         </select>
-                        <select v-model="filterGenre" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white max-w-xs">
+                        <select v-model="filterGenre" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
                             <option value="">All Genres</option>
                             <option v-for="g in availableGenres" :key="g" :value="g">{{ g }}</option>
                         </select>
-                        <select v-model="filterYear" class="bg-[#222] border border-gray-600 text-white px-3 py-1.5 rounded outline-none focus:border-white">
+                        <select v-model="filterYear" class="flex-1 sm:flex-none bg-[#222] border border-gray-600 text-white px-2 py-2 md:px-3 text-sm md:text-base rounded outline-none focus:border-white min-h-[44px]">
                             <option value="">All Years</option>
                             <option v-for="y in availableYears" :key="y" :value="y">{{ y }}</option>
                         </select>
@@ -225,7 +225,7 @@
                 </div>
                 
                 <div v-if="isPersonalCategory && loadingLists && visibleResults.length === 0" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
-                    <div v-for="i in 12" :key="'list-skel-'+i" class="aspect-[2/3] rounded-lg skeleton-shimmer"></div>
+                    <div v-for="i in 12" :key="'list-skel-'+i" class="w-full aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
                 </div>
                 <div v-else-if="visibleResults.length === 0" class="text-center py-16 text-gray-400">
                     <i class="fas fa-film text-4xl mb-4 text-gray-600"></i>
@@ -273,8 +273,8 @@
                     <!-- Recommended For You Row -->
                     <div v-if="recommendedItems.length > 0 || loadingRecs">
                         <h2 class="text-2xl font-bold mb-4">Recommended For You</h2>
-                        <div v-if="loadingRecs && recommendedItems.length === 0" class="flex overflow-x-auto gap-4 pb-4">
-                            <div v-for="i in 6" :key="'rec-skel-'+i" class="flex-none w-40 sm:w-48 lg:w-56 aspect-[2/3] bg-gray-800 rounded-lg skeleton-shimmer"></div>
+                        <div v-if="loadingRecs && recommendedItems.length === 0" class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
+                            <div v-for="i in 6" :key="'rec-skel-'+i" class="flex-none shrink-0 w-40 sm:w-48 lg:w-56 aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
                         </div>
                         <div v-else class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
                             <div v-for="item in recommendedItems" :key="'rec-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
@@ -343,7 +343,7 @@
                 <!-- Infinite scroll sentinel + skeletons -->
                 <div v-if="categoryHasMore" ref="infiniteSentinel" class="h-4"></div>
                 <div v-if="loadingMore && !isPersonalCategory" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 mt-4">
-                    <div v-for="i in 12" :key="'inf-skel-'+i" class="aspect-[2/3] rounded-lg skeleton-shimmer"></div>
+                    <div v-for="i in 12" :key="'inf-skel-'+i" class="w-full aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
                 </div>
                 <div v-if="!categoryHasMore && visibleResults.length > 0" class="text-center text-gray-600 text-xs mt-8">You're all caught up.</div>
                 </div>
@@ -431,6 +431,26 @@
                 </div>
             </div>
         </div>
+
+        <!-- Quality Picker Modal -->
+        <div v-if="showQualityPicker" class="fixed inset-0 z-[210] flex items-center justify-center p-4 modal-overlay overflow-y-auto backdrop-blur-md transition-opacity duration-300" @click.self="showQualityPicker = false; pendingAction = null">
+            <div class="bg-[#141414] w-full max-w-sm rounded-xl p-6 relative text-white flex flex-col shadow-2xl border border-gray-700 animate-[scaleIn_0.3s_ease-out]">
+                <button @click="showQualityPicker = false; pendingAction = null" class="absolute top-4 right-4 z-20 text-gray-400 hover:text-white transition-all">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+                <h2 class="text-2xl font-bold mb-4">Select Quality</h2>
+                
+                <div v-if="qualityPickerLoading" class="flex justify-center p-8">
+                    <i class="fas fa-spinner fa-spin text-3xl text-gray-500"></i>
+                </div>
+                <div v-else class="space-y-2">
+                    <button v-for="q in availableQualities" :key="q" @click="confirmQuality(q)" class="w-full text-left px-4 py-3 bg-[#222] hover:bg-[#333] border border-gray-700 hover:border-gray-500 rounded font-bold transition-all flex justify-between items-center">
+                        {{ q }} <i class="fas fa-chevron-right text-sm text-gray-500"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
 
         <!-- Details Modal -->
         <div v-if="showDetailsModal" class="modal-sheet fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-10 modal-overlay overflow-y-auto backdrop-blur-md transition-opacity duration-300" @click.self="closeDetails">
@@ -587,13 +607,13 @@
                                         <button v-for="(m, mi) in stream.mirrors" :key="mi" @click="selectedMirror[idx] = mi" :class="['btn-touch flex-none chip !text-[.65rem] !py-1.5', (selectedMirror[idx] || 0) === mi ? '!bg-white !text-black !border-white' : 'hover:border-gray-300']">{{ m.label || ('Source ' + (mi + 1)) }}</button>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <button @click="playInBrowser(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-white text-black hover:bg-gray-200 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
+                                        <button @click="promptQuality(stream, activeMirror(stream, idx), idx, 'play')" class="btn-touch flex-1 sm:flex-none bg-white text-black hover:bg-gray-200 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
                                             <i class="fas fa-play mr-1"></i> Play
                                         </button>
                                         <button @click="openVlcModal(stream, activeMirror(stream, idx))" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md">
                                             <i :class="isMobile ? 'fas fa-external-link-alt mr-1' : 'fas fa-desktop mr-1'"></i> {{ isMobile ? 'Play in App' : 'VLC' }}
                                         </button>
-                                        <button @click="downloadStream(stream, activeMirror(stream, idx), idx)" :disabled="downloadingIdx === idx" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md disabled:opacity-50 disabled:cursor-wait">
+                                        <button @click="promptQuality(stream, activeMirror(stream, idx), idx, 'download')" :disabled="downloadingIdx === idx" class="btn-touch flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold transition-all text-center shadow-md disabled:opacity-50 disabled:cursor-wait">
                                             <i :class="['mr-1', downloadingIdx === idx ? 'fas fa-spinner fa-spin' : 'fas fa-download']"></i>
                                             {{ downloadingIdx === idx ? 'Saving...' : 'Download' }}
                                         </button>
@@ -658,7 +678,12 @@
                 selectedItem: null,
                 showDetailsModal: false,
                 loadingDetails: false,
+                streamsError: null,
                 loadingStreams: false,
+                showQualityPicker: false,
+                qualityPickerLoading: false,
+                availableQualities: [],
+                pendingAction: null,
                 activeSeason: null,
                 streams: [],
                 browserPlayUrl: null,
@@ -1151,7 +1176,7 @@
                     const p = (n) => String(n).padStart(2, '0');
                     return h > 0 ? h + ':' + p(m) + ':' + p(sec) : p(m) + ':' + p(sec);
                 },
-                async downloadStream(stream, mirror, idx) {
+                async downloadStream(stream, mirror, idx, selectedQuality) {
                     if (!this.requireLogin()) return;
                     if (!mirror) return;
                     if (this.downloadingIdx !== null) return;
@@ -1162,7 +1187,7 @@
                         const res = await fetch('/api/downloads', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: mirror.resolver_url, headers: headersArr, filename: base })
+                            body: JSON.stringify({ url: mirror.resolver_url, headers: headersArr, filename: base, quality: selectedQuality })
                         });
                         if (res.status === 401) { this.authFailed(); return; }
                         if (!res.ok) { this.showToast('Download failed: ' + await this.apiErrorMessage(res, 'Could not start download.'), true); return; }
@@ -1513,7 +1538,57 @@
                         this.showVlcModal = false;
                     }
                 },
-                async playInBrowser(stream, mirror) {
+                promptQuality(stream, mirror, idx, type) {
+                    if (!this.requireLogin()) return;
+                    if (!mirror) return;
+                    
+                    this.pendingAction = { stream, mirror, idx, type };
+                    this.showQualityPicker = true;
+                    this.qualityPickerLoading = true;
+                    this.availableQualities = [];
+                    
+                    const proxyUrl = this.getProxyUrl(mirror);
+                    
+                    fetch(proxyUrl).then(res => res.text()).then(text => {
+                        let qualities = [];
+                        if (proxyUrl.includes('.mpd')) {
+                            const matches = [...text.matchAll(/height="(\d+)"/g)];
+                            qualities = matches.map(m => parseInt(m[1], 10)).filter(h => !isNaN(h));
+                        } else if (proxyUrl.includes('.m3u8')) {
+                            const matches = [...text.matchAll(/RESOLUTION=\d+x(\d+)/g)];
+                            qualities = matches.map(m => parseInt(m[1], 10)).filter(h => !isNaN(h));
+                        }
+                        qualities = [...new Set(qualities)].sort((a,b) => b - a);
+                        
+                        if (qualities.length > 0) {
+                            this.availableQualities = qualities.map(q => q + 'p');
+                        } else {
+                            this.availableQualities = ['Auto'];
+                        }
+                        this.qualityPickerLoading = false;
+                    }).catch(() => {
+                        this.availableQualities = ['Auto'];
+                        this.qualityPickerLoading = false;
+                    });
+                },
+                confirmQuality(q) {
+                    this.showQualityPicker = false;
+                    let parsedQuality = null;
+                    if (q !== 'Auto') {
+                        parsedQuality = parseInt(q.replace('p', ''), 10);
+                    }
+                    
+                    if (this.pendingAction) {
+                        const { stream, mirror, idx, type } = this.pendingAction;
+                        if (type === 'play') {
+                            this.playInBrowser(stream, mirror, parsedQuality);
+                        } else if (type === 'download') {
+                            this.downloadStream(stream, mirror, idx, parsedQuality);
+                        }
+                        this.pendingAction = null;
+                    }
+                },
+                async playInBrowser(stream, mirror, selectedQuality) {
                     if (!this.requireLogin()) return;
                     if(!mirror) return;
                     this.lastPlayback = { stream, mirror };
@@ -1655,9 +1730,10 @@
                                     const availableQualities = bitrates.map(b => b.height).filter((h, i, a) => a.indexOf(h) === i).sort((a, b) => b - a);
                                     
                                     if (availableQualities.length > 0 && this.player) {
-                                        // Dynamically update Plyr options for DASH
+                                        const defQual = selectedQuality && availableQualities.includes(selectedQuality) ? selectedQuality : availableQualities[0];
+                                        
                                         this.player.options.quality = {
-                                            default: availableQualities[0],
+                                            default: defQual,
                                             options: availableQualities,
                                             forced: true,
                                             onChange: (newQuality) => {
@@ -1669,6 +1745,9 @@
                                                 }
                                             }
                                         };
+                                        if (defQual) {
+                                            this.player.options.quality.onChange(defQual);
+                                        }
                                     }
                                     
                                     this.player.play();
@@ -1709,14 +1788,16 @@
                                 const availableQualities = this.hls.levels.map((l) => l.height);
                                 availableQualities.sort((a, b) => b - a);
                                 
+                                const defQual = selectedQuality && availableQualities.includes(selectedQuality) ? selectedQuality : availableQualities[0];
                                 defaultOptions.quality = {
-                                    default: availableQualities[0],
+                                    default: defQual,
                                     options: availableQualities,
                                     forced: true,
                                     onChange: (e) => this.updateQuality(e)
                                 };
                                 
                                 initPlayer();
+                                if (defQual) this.updateQuality(defQual);
                                 this.player.play();
                             });
                         } else {

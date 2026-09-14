@@ -49,10 +49,12 @@ pub struct DlJob {
     pub headers: Vec<(String, String)>,
     #[serde(skip)]
     pub cancel: Arc<AtomicBool>,
+    #[serde(skip)]
+    pub quality: Option<u16>,
 }
 
 impl DlJob {
-    fn new(id: String, filename: String, kind: &str, url: String, headers: Vec<(String, String)>) -> Self {
+    fn new(id: String, filename: String, kind: &str, url: String, headers: Vec<(String, String)>, quality: Option<u16>) -> Self {
         Self {
             id,
             filename,
@@ -67,6 +69,7 @@ impl DlJob {
             url,
             headers,
             cancel: Arc::new(AtomicBool::new(false)),
+            quality,
         }
     }
 
@@ -110,6 +113,7 @@ impl DlStore {
         url: String,
         headers: Vec<(String, String)>,
         filename: Option<String>,
+        quality: Option<u16>,
     ) -> Result<DlJob, (axum::http::StatusCode, String)> {
         let parsed = check_ssrf_url(&url)?;
         let stem_raw = filename
@@ -146,6 +150,7 @@ impl DlStore {
             kind,
             url,
             headers,
+            quality,
         );
 
         // Cap stored jobs (drop oldest terminal ones + their files).
@@ -471,11 +476,15 @@ async fn run_direct(store: &DlStore, http: &reqwest::Client, id: &str) -> Result
 
 // ---------------- HLS: fetch playlist (auth headers), segments -> .ts -> ffmpeg mp4
 
-fn pick_hls_variant(master: &str) -> Option<String> {
-    // Master playlist: pick the URI after the highest BANDWIDTH EXT-X-STREAM-INF.
+fn pick_hls_variant(master: &str, quality: Option<u16>) -> Option<String> {
+    // Master playlist: pick the URI after the EXT-X-STREAM-INF.
+    // If quality is Some, find the variant with resolution height closest to it.
+    // Otherwise, pick the highest bandwidth.
     let mut best_bw: u64 = 0;
+    let mut best_height_diff: Option<u16> = None;
     let mut best_uri: Option<String> = None;
     let mut pending_bw: Option<u64> = None;
+    let mut pending_height: Option<u16> = None;
     for line in master.lines() {
         let t = line.trim();
         if let Some(rest) = t.strip_prefix("#EXT-X-STREAM-INF:") {
@@ -484,10 +493,41 @@ fn pick_hls_variant(master: &str) -> Option<String> {
                 kv.strip_prefix("BANDWIDTH=")
                     .and_then(|v| v.parse::<u64>().ok())
             });
+            pending_height = rest.split(',').find_map(|kv| {
+                let kv = kv.trim();
+                kv.strip_prefix("RESOLUTION=")
+                    .and_then(|v| v.split('x').nth(1))
+                    .and_then(|v| v.parse::<u16>().ok())
+            });
         } else if !t.is_empty() && !t.starts_with('#') {
             if let Some(bw) = pending_bw.take() {
-                if best_uri.is_none() || bw >= best_bw {
+                let height = pending_height.take();
+                let is_better = if let Some(q) = quality {
+                    if let Some(h) = height {
+                        let diff = h.abs_diff(q);
+                        if let Some(best_diff) = best_height_diff {
+                            if diff < best_diff {
+                                true
+                            } else if diff == best_diff && bw > best_bw {
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            true
+                        }
+                    } else {
+                        best_uri.is_none()
+                    }
+                } else {
+                    best_uri.is_none() || bw >= best_bw
+                };
+
+                if is_better {
                     best_bw = bw;
+                    if let (Some(q), Some(h)) = (quality, height) {
+                        best_height_diff = Some(h.abs_diff(q));
+                    }
                     best_uri = Some(t.to_string());
                 }
             }
@@ -533,7 +573,7 @@ async fn run_hls(store: &DlStore, http: &reqwest::Client, id: &str) -> Result<()
     let mut text = fetch_text(http, &job.headers, &base).await?;
     // Master playlist? descend into the best variant (same auth headers).
     if text.contains("#EXT-X-STREAM-INF") {
-        let rel = pick_hls_variant(&text).ok_or("cannot find variant playlist".to_string())?;
+        let rel = pick_hls_variant(&text, job.quality).ok_or("cannot find variant playlist".to_string())?;
         let variant_url = base.join(&rel).map_err(|_| "bad variant url".to_string())?;
         if super::is_blocked_host(variant_url.host_str().unwrap_or("")) {
             return Err("blocked destination after redirect".to_string());
@@ -879,8 +919,13 @@ async fn run_dash(store: &DlStore, _http: &reqwest::Client, id: &str) -> Result<
             cmd.arg("--add-header").arg(format!("{k}: {v}"));
         }
     }
+    let format_arg = if let Some(q) = job.quality {
+        format!("bestvideo[height<={}]+bestaudio/best", q)
+    } else {
+        "bestvideo+bestaudio/best".to_string()
+    };
     cmd.arg("-f")
-        .arg("bestvideo+bestaudio/best")
+        .arg(&format_arg)
         .arg("--newline")
         .arg("--merge-output-format")
         .arg("mp4")

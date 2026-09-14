@@ -1052,6 +1052,7 @@ struct StartDlReq {
     url: String,
     headers: Option<Vec<(String, String)>>,
     filename: Option<String>,
+    quality: Option<u16>,
 }
 
 async fn start_download_handler(
@@ -1072,6 +1073,7 @@ async fn start_download_handler(
             req.url,
             req.headers.unwrap_or_default(),
             req.filename,
+            req.quality,
         )
         .await
     {
