@@ -40,7 +40,7 @@
         .suggest-panel { animation: fadeIn 0.15s ease-out; }
         .menu-enter-active,.menu-leave-active,.modal-enter-active,.modal-leave-active { transition: opacity .18s var(--ease), transform .18s var(--ease); }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-        @media (max-width: 768px) { .suggest-panel { position: fixed; left: 1rem; right: 1rem; top: 64px; } }
+        @media (max-width: 768px) { .suggest-panel { position: fixed !important; left: 1rem !important; right: 1rem !important; top: 64px !important; width: auto !important; } }
         body { background-color: #141414; color: #fff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; overflow-x: hidden; }
         .netflix-red { color: #e50914; }
         .bg-netflix-red { background-color: #e50914; }
