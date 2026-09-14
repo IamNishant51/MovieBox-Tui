@@ -29,13 +29,13 @@ Welcome, future AI Agent! This document explains the architecture, design decisi
 
 ## 🚨 Critical Problems Solved (Do Not Revert!)
 
-### 1. The VLC "Invisible Window" Problem (Windows)
-**The Issue:** When spawning VLC from a background Rust process (or a hidden scheduled task/agent environment), VLC would inherit the `SW_HIDE` startup info. The audio would play, but the user couldn't see the video window.
+### 1. The VLC "Invisible Window" / Immediate Close Problem (Windows)
+**The Issue:** When spawning VLC from a background Rust process or from pseudo-terminals like Git Bash (mintty), VLC would inherit a hidden console state (`SW_HIDE`). The audio would play, but the user couldn't see the video window. Furthermore, if a hidden instance got stuck in the background, clicking play would spawn a new VLC which simply forwarded the URL to the hidden instance and closed immediately. Finally, if the server was run with `HOST=0.0.0.0`, VLC on Windows would fail instantly (and close) because Windows cannot route to `0.0.0.0`.
 **The Solution:** 
-1. We **avoided** using `CREATE_NO_WINDOW` or `DETACHED_PROCESS` flags in Rust.
-2. We found that if the server is launched by a hidden background task, it's almost impossible to force VLC to become visible without complex Win32 API hacks. 
-3. **The final fix:** The user MUST run the server manually in a visible terminal (`cargo run --bin server`). When run from a visible terminal, `std::process::Command::spawn()` inherits the visible window station, and VLC pops up perfectly. 
-*Do not try to add `cmd /c start` or WMI hacks to the `play_handler` again, they cause Access Denied errors.*
+1. **Force a New Console:** In `src/bin/server.rs`'s `play_handler`, we use `cmd.creation_flags(0x0000_0010)` (`CREATE_NEW_CONSOLE`). This forces Windows to allocate a brand new, visible window station for VLC, bypassing any hidden terminal inheritance (like from Git Bash).
+2. **Prevent IPC Forwarding:** In `src/player.rs`'s `vlc_command`, we explicitly pass `--no-one-instance`. This guarantees VLC opens a new, visible window instead of forwarding the video to a stuck, hidden background instance and closing immediately.
+3. **Rewrite 0.0.0.0:** In `src/proxy.rs`, we intercept `0.0.0.0` host addresses and rewrite them to `127.0.0.1` for proxy URLs and DASH manifests so that VLC on Windows can connect successfully.
+*Do not try to remove `CREATE_NEW_CONSOLE` or `--no-one-instance`! Removing them brings back the invisible window and immediate-close bugs.*
 
 ### 2. The CloudFront HLS Proxy
 **The Issue:** MovieBox streams use signed CloudFront cookies. VLC natively cannot send custom `Cookie` headers via its CLI. Browsers block cross-origin requests to CloudFront.
