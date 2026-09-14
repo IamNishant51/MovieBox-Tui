@@ -9,7 +9,6 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.plyr.io">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
@@ -22,7 +21,7 @@
             --ring: rgba(255,255,255,.7);
             --ease: cubic-bezier(.21,.9,.35,1);
         }
-        body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; letter-spacing: .01em; }
+        body { font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; letter-spacing: .01em; }
         h1, h2, h3 { letter-spacing: -.01em; }
         :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -47,8 +46,8 @@
         .bg-netflix-red { background-color: #e50914; }
         .hover-bg-netflix-red:hover { background-color: #f40612; }
         
-        .movie-card { transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease; }
-        .movie-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 10px 20px rgba(0,0,0,0.8); transition-delay: 150ms; }
+        .movie-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .movie-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 10px 20px rgba(0,0,0,0.8); }
         
         .modal-overlay { background-color: rgba(0,0,0,0.8); backdrop-filter: blur(5px); }
         .modal-content { background-color: #181818; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
@@ -75,13 +74,7 @@
         .hero-fade-enter, .hero-fade-leave-to {
             opacity: 0;
         }
-    
-        @keyframes kenBurns {
-            0% { transform: scale(1.0); }
-            100% { transform: scale(1.05); }
-        }
-        .ken-burns { animation: kenBurns 15s ease-out forwards; }
-</style>
+    </style>
 </head>
 <body>
     <div id="app" class="min-h-screen relative pb-10">
@@ -100,18 +93,18 @@
                 </div>
                 <div class="flex items-center space-x-3">
                     <div class="relative flex items-center">
-                        
-                        <div class="relative flex items-center transition-all duration-300" :class="searchActive ? 'w-64 sm:w-72 md:w-80 border border-white bg-black/80' : 'w-[44px] bg-transparent border-none'">
-                            <button @click="toggleSearch" aria-label="Search" class="text-white hover:text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all z-10 flex-none bg-transparent outline-none">
-                                <i class="fas fa-search"></i>
-                            </button>
-                            <input ref="searchInput" v-model="searchQuery" @input="onSuggestInput" @keydown.esc="clearSearch" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-transparent text-white py-1.5 text-sm md:text-base focus:outline-none transition-all min-h-[36px] w-full pr-10', searchActive ? 'opacity-100' : 'opacity-0 hidden']" />
-                            <button v-if="searchActive && searchQuery" @click="clearSearch" class="absolute right-0 text-white hover:text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center z-10">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-
-                        </div>
+                        <input v-model="searchQuery" @input="onSuggestInput" @focus="onSuggestFocus" @blur="hideSuggestDelayed" @keydown.down.prevent="moveSuggest(1)" @keydown.up.prevent="moveSuggest(-1)" @keydown.enter="onSuggestEnter" @keydown.esc="showSuggest = false" type="text" placeholder="Titles, people, genres" autocomplete="off" aria-label="Search titles" :class="['bg-black/70 border border-gray-600 text-white py-1.5 text-sm md:text-base rounded focus:outline-none focus:border-white transition-all min-h-[36px] absolute right-0 md:relative', searchActive ? 'w-48 sm:w-64 md:w-72 opacity-100 px-4 pr-10' : 'w-0 opacity-0 border-none px-0']" />
+                        <button @click="toggleSearch" aria-label="Search" :class="['text-white hover:text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all z-10', searchActive ? 'absolute right-0 text-gray-300' : 'relative']">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <div v-if="showSuggest && (suggestResults.length || suggestStrings.length)" class="suggest-panel absolute top-full mt-2 right-0 md:right-auto md:w-96 max-h-[60vh] overflow-y-auto bg-[#181818] border border-gray-700 rounded-lg shadow-2xl z-[60] w-64 sm:w-72">
+                            <div v-for="(item, idx) in suggestResults" :key="item.id.value + idx" @mousedown.prevent="pickSuggest(item)" :class="['flex items-center gap-3 p-2 cursor-pointer', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">
+                                <img v-if="item.poster_url" :src="item.poster_url" class="w-10 h-14 object-cover rounded flex-none bg-gray-800" loading="lazy" />
+                                <div v-else class="w-10 h-14 flex-none flex items-center justify-center bg-gray-800 rounded text-gray-500"><i class="fas fa-image"></i></div>
+                                <div class="min-w-0">
+                                    <div class="truncate text-sm font-bold">{{ item.title }}</div>
+                                    <div class="text-xs text-gray-400">{{ item.year || 'N/A' }} · {{ item.media_type === 'movie' ? 'Movie' : 'TV' }}</div>
+                                </div>
                             </div>
                             <div v-if="!suggestResults.length" v-for="(s, idx) in suggestStrings" :key="'s-'+idx" @mousedown.prevent="runStringSuggest(s)" :class="['px-4 py-2 text-sm cursor-pointer truncate', suggestIndex === idx ? 'bg-gray-700' : 'hover:bg-gray-800']">{{ s }}</div>
                         </div>
@@ -122,7 +115,7 @@
                     </button>
                     <div v-if="authLoading" class="w-8 h-8 rounded-full skeleton-shimmer" aria-hidden="true"></div>
                     <span v-else-if="!loginRequired" class="text-[.65rem] font-bold tracking-widest text-green-400 border border-green-800 rounded px-2 py-1">DEV</span>
-                    
+
                     <div v-else class="relative">
                         <button @click="showUserMenu = !showUserMenu" aria-label="Account menu" class="rounded-full focus-visible:ring-2">
                             <img v-if="user.picture" :src="user.picture" :alt="user.email" class="w-8 h-8 rounded-full object-cover ring-1 ring-white/20" />
@@ -195,7 +188,7 @@
                 <h2 class="text-2xl font-bold mb-4">
                     <div class="h-8 bg-gray-800 rounded w-48 skeleton-shimmer"></div>
                 </h2>
-                <div class="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
                     <div v-for="i in 12" :key="i" class="w-full relative rounded-md overflow-hidden aspect-[2/3] bg-[#262626] skeleton-shimmer">
                     </div>
                 </div>
@@ -231,7 +224,7 @@
                     </div>
                 </div>
                 
-                <div v-if="isPersonalCategory && loadingLists && visibleResults.length === 0" class="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                <div v-if="isPersonalCategory && loadingLists && visibleResults.length === 0" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
                     <div v-for="i in 12" :key="'list-skel-'+i" class="w-full aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
                 </div>
                 <div v-else-if="visibleResults.length === 0" class="text-center py-16 text-gray-400">
@@ -246,7 +239,7 @@
                     <div v-if="historyItemsMapped.length > 0">
                         <h2 class="text-2xl font-bold mb-4">Continue Watching</h2>
                         <div class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
-                            <div v-for="item in historyItemsMapped" :key="'hist-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-[35vw] md:w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
+                            <div v-for="item in historyItemsMapped" :key="'hist-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
                                     <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
@@ -265,7 +258,7 @@
                     <div v-if="favoriteItemsMapped.length > 0">
                         <h2 class="text-2xl font-bold mb-4">My List</h2>
                         <div class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
-                            <div v-for="item in favoriteItemsMapped" :key="'fav-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-[35vw] md:w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
+                            <div v-for="item in favoriteItemsMapped" :key="'fav-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
                                     <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
@@ -281,10 +274,10 @@
                     <div v-if="recommendedItems.length > 0 || loadingRecs">
                         <h2 class="text-2xl font-bold mb-4">Recommended For You</h2>
                         <div v-if="loadingRecs && recommendedItems.length === 0" class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
-                            <div v-for="i in 6" :key="'rec-skel-'+i" class="flex-none shrink-0 w-[35vw] md:w-40 sm:w-48 lg:w-56 aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
+                            <div v-for="i in 6" :key="'rec-skel-'+i" class="flex-none shrink-0 w-40 sm:w-48 lg:w-56 aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
                         </div>
                         <div v-else class="flex overflow-x-auto gap-4 scrollbar-hide snap-x pb-4">
-                            <div v-for="item in recommendedItems" :key="'rec-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-[35vw] md:w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
+                            <div v-for="item in recommendedItems" :key="'rec-'+item.id.value" @click="fetchDetails(item)" class="flex-none w-40 sm:w-48 lg:w-56 cursor-pointer group relative rounded-lg overflow-hidden snap-start transform transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
                                     <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
                                     <div v-else class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-image text-4xl"></i></div>
@@ -303,7 +296,7 @@
                     <!-- Trending Now Grid (infinite) -->
                     <div>
                         <h2 class="text-xl md:text-2xl font-bold mb-4">Trending Now</h2>
-                        <div class="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
                             <div v-for="item in visibleResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                                 <div class="aspect-[2/3] w-full bg-gray-800">
                                     <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
@@ -325,7 +318,7 @@
                 </div>
 
                 <!-- Grid for non-Trending categories (infinite) -->
-                <div v-else class="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
+                <div v-else class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4">
                     <div v-for="item in visibleResults" :key="item.id.value" @click="fetchDetails(item)" class="cursor-pointer group relative rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-105 hover:z-10 shadow-lg bg-[#111]">
                         <div class="aspect-[2/3] w-full bg-gray-800">
                             <img v-if="item.poster_url" :src="item.poster_url" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" loading="lazy" />
@@ -349,7 +342,7 @@
 
                 <!-- Infinite scroll sentinel + skeletons -->
                 <div v-if="categoryHasMore" ref="infiniteSentinel" class="h-4"></div>
-                <div v-if="loadingMore && !isPersonalCategory" class="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 mt-4">
+                <div v-if="loadingMore && !isPersonalCategory" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 mt-4">
                     <div v-for="i in 12" :key="'inf-skel-'+i" class="w-full aspect-[2/3] bg-[#262626] rounded-lg skeleton-shimmer"></div>
                 </div>
                 <div v-if="!categoryHasMore && visibleResults.length > 0" class="text-center text-gray-600 text-xs mt-8">You're all caught up.</div>
@@ -398,6 +391,8 @@
                 </div>
             </aside>
         </div>
+
+
 
         <!-- Details Modal -->
         <!-- VLC Options Modal -->
@@ -638,7 +633,7 @@
         new Vue({
             el: '#app',
             data: {
-                searchQuery: '', prevCategory: null, loadingSearch: false,
+                searchQuery: '',
                 searchActive: false,
                 scrolled: false,
                 allResults: [],
@@ -858,7 +853,10 @@
             },
             methods: {
                 requireLogin() {
-                    return true;
+                    if (!this.loginRequired) return true;
+                    if (this.user) return true;
+                    this.showLoginModal = true;
+                    return false;
                 },
                 authFailed(detail) {
                     // Production: session expired/invalid -> force Google login.
@@ -1014,31 +1012,14 @@
                 onSuggestInput() {
                     clearTimeout(this.suggestTimer);
                     const q = (this.searchQuery || '').trim();
-                    if (q.length === 0) { this.clearSearch(); return; }
-                    if (this.category !== 'Search') this.prevCategory = this.category;
-                    this.category = 'Search';
-                    this.allResults = [];
-                    this.loadingSearch = true;
-                    this.suggestTimer = setTimeout(() => this.executeSearch(q), 500);
+                    if (q.length < 2) { this.suggestResults = []; this.suggestStrings = []; this.showSuggest = false; return; }
+                    this.suggestTimer = setTimeout(() => this.fetchSuggest(q), 300);
                 },
                 onSuggestFocus() {
                     if (this.suggestResults.length || this.suggestStrings.length) this.showSuggest = true;
                     else if ((this.searchQuery || '').trim().length >= 2) this.onSuggestInput();
                 },
                 hideSuggestDelayed() { setTimeout(() => { this.showSuggest = false; }, 200); },
-                async executeSearch(q) {
-                    try {
-                        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-                        const data = await res.json();
-                        this.allResults = data.results || [];
-                    } catch (e) { this.gridError = e.message; }
-                    finally { this.loadingSearch = false; }
-                },
-                clearSearch() {
-                    this.searchQuery = "";
-                    this.searchActive = false;
-                    if (this.category === 'Search') this.category = this.prevCategory || 'Trending';
-                },
                 async fetchSuggest(q) {
                     const myId = ++this.suggestReqId;
                     try {
@@ -1252,7 +1233,7 @@
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 },
                 toggleSearch() {
-                    this.searchActive = !this.searchActive; if (this.searchActive) { this.$nextTick(() => this.$refs.searchInput.focus()); } else { this.clearSearch(); }
+                    this.searchActive = !this.searchActive;
                     if (this.searchActive) {
                         this.$nextTick(() => {
                             const input = document.querySelector('input[type="text"]');
@@ -1274,7 +1255,6 @@
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 },
                 setCategory(cat) {
-                    
                     this.category = cat;
                     this.searchQuery = '';
                     this.searchActive = false;
