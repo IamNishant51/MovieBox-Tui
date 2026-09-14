@@ -556,6 +556,7 @@ fn vlc_command(
             .arg(format!("--height={height}"));
     }
     command.arg("--play-and-exit");
+    command.arg("--no-one-instance");
 
     if let Some(start) = resume_seconds {
         if start > 0 {

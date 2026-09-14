@@ -763,12 +763,6 @@ async fn play_handler(
         cmd.stdout(std::process::Stdio::null());
         cmd.stderr(std::process::Stdio::null());
 
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x0000_0010);
-        }
-
         match cmd.spawn() {
             Ok(_child) => {
                 return (StatusCode::OK, format!("Launched {:?} successfully", player_kind)).into_response();
