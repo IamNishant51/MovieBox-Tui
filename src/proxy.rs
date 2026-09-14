@@ -102,7 +102,10 @@ pub fn spawn_sidecar(
         format!("/https/{target_url}")
     };
 
-    let host_ip = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let mut host_ip = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    if host_ip == "0.0.0.0" {
+        host_ip = "127.0.0.1".to_string();
+    }
     Ok(format!("http://{host_ip}:{port}{proxy_path}"))
 }
 
@@ -174,7 +177,10 @@ pub async fn run_sidecar(
         }
 
         let sub_opt = subtitle_url.clone();
-        let host_ip = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let mut host_ip = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        if host_ip == "0.0.0.0" {
+            host_ip = "127.0.0.1".to_string();
+        }
         tokio::spawn(async move {
             let _guard = ConnectionGuard {
                 conns: active_conns,
